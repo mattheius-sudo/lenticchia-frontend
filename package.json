@@ -2,7 +2,7 @@
   "name": "lenticchia",
   "private": true,
   "version": "0.1.0",
-  "description": "Lenticchia — la spesa, senza sorprese",
+  "description": "Lenticchia \u2014 la spesa, senza sorprese",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -20,5 +20,6 @@
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.4",
     "vite": "^5.3.1"
-  }
+  },
+  "type": "module"
 }

@@ -1,7 +1,8 @@
 {
-  "name": "romarisparmia",
+  "name": "lenticchia",
   "private": true,
   "version": "0.1.0",
+  "description": "Lenticchia — la spesa, senza sorprese",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

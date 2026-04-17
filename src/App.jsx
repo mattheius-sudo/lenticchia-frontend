@@ -166,33 +166,33 @@ const ProductCard = ({ offerta, storico = null, archivio = [], index = 0 }) => {
 
   return (
     <div
-      className="bg-white rounded-[20px] border p-5 mb-3 flex flex-col gap-3 active:scale-[0.98] transition-transform"
+      className="bg-white rounded-[20px] border p-5 mb-4 flex flex-col gap-3 active:scale-[0.98] transition-transform"
       style={{
         borderColor: T.border,
-        boxShadow: '0 4px 24px rgba(44,48,38,0.05)',
+        boxShadow: '0 6px 28px rgba(44,48,38,0.09), 0 1px 4px rgba(44,48,38,0.06)',
         animationDelay: `${index * 50}ms`
       }}
     >
       <div className="flex justify-between items-start gap-3">
         <div className="flex-1">
-          <h3 className="font-medium leading-snug" style={{ color: T.textPrimary, fontFamily: "'DM Sans', sans-serif", fontSize: '15px' }}>
+          <h3 className="font-medium leading-snug" style={{ color: T.textPrimary, fontFamily: "'DM Sans', sans-serif", fontSize: '17px' }}>
             {offerta.nome}
           </h3>
           {offerta.marca && (
-            <p className="text-xs mt-0.5 uppercase tracking-wider font-medium" style={{ color: T.textSec }}>
+            <p className="mt-1 uppercase tracking-wider font-medium" style={{ color: T.textSec, fontSize: '12px' }}>
               {offerta.marca}
             </p>
           )}
           {offerta.grammatura && (
-            <p className="text-xs mt-1" style={{ color: T.textSec }}>{offerta.grammatura}</p>
+            <p className="mt-1" style={{ color: T.textSec, fontSize: '14px' }}>{offerta.grammatura}</p>
           )}
         </div>
         <div className="text-right shrink-0">
-          <div className="text-2xl font-semibold" style={{ color: T.textPrimary, fontFamily: "'Lora', serif" }}>
+          <div className="font-semibold" style={{ color: T.textPrimary, fontFamily: "'Lora', serif", fontSize: '26px' }}>
             {formattaPrezzo(offerta.prezzo)}
           </div>
           {offerta.prezzo_kg && (
-            <div className="text-xs mt-0.5" style={{ color: T.textSec }}>
+            <div className="mt-0.5" style={{ color: T.textSec, fontSize: '13px' }}>
               {formattaPrezzo(offerta.prezzo_kg)}/kg
             </div>
           )}
@@ -231,25 +231,23 @@ const ProductCard = ({ offerta, storico = null, archivio = [], index = 0 }) => {
       })()}
 
       {/* Badge footer */}
-      <div className="flex flex-wrap items-center gap-1.5 pt-2" style={{ borderTop: `1px solid ${T.border}` }}>
-        <span className={`px-2.5 py-0.5 rounded-lg text-[11px] font-bold tracking-wide ${getBadgeInsegna(offerta.insegna)}`}>
+      <div className="flex flex-wrap items-center gap-2 pt-3" style={{ borderTop: `1px solid ${T.border}` }}>
+        <span className={`px-3 py-1 rounded-lg font-bold tracking-wide ${getBadgeInsegna(offerta.insegna)}`} style={{ fontSize: '13px' }}>
           {offerta.insegna}
         </span>
         {offerta.fidelity_req && (
-          <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-            <Star size={10} className="fill-blue-700" strokeWidth={0} /> Carta
+          <span className="flex items-center gap-1.5 px-3 py-1 rounded-lg font-semibold bg-blue-50 text-blue-700 border border-blue-200" style={{ fontSize: '13px' }}>
+            <Star size={12} className="fill-blue-700" strokeWidth={0} /> Carta fedeltà
           </span>
         )}
         {isScadenzaOggi && (
-          <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[11px] font-semibold border"
-            style={{ background: '#FFF5F0', color: T.accent, borderColor: '#F4C5A8' }}>
-            <Clock size={10} strokeWidth={1.5} /> Scade oggi
+          <span className="flex items-center gap-1.5 px-3 py-1 rounded-lg font-semibold border" style={{ fontSize: '13px', background: '#FFF5F0', color: T.accent, borderColor: '#F4C5A8' }}>
+            <Clock size={12} strokeWidth={1.5} /> Scade oggi
           </span>
         )}
         {isScadenzaDomani && (
-          <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[11px] font-semibold border"
-            style={{ background: '#FFF8F0', color: '#C4682A', borderColor: '#F4D5B8' }}>
-            <Clock size={10} strokeWidth={1.5} /> Scade domani
+          <span className="flex items-center gap-1.5 px-3 py-1 rounded-lg font-semibold border" style={{ fontSize: '13px', background: '#FFF8F0', color: '#C4682A', borderColor: '#F4D5B8' }}>
+            <Clock size={12} strokeWidth={1.5} /> Scade domani
           </span>
         )}
       </div>
@@ -1025,19 +1023,19 @@ function AppInterna() {
   }
 
   const NAV_ITEMS = [
-    { id: 'lista',   icon: <ListTodo size={22} strokeWidth={1.5} />,   label: 'Spesa' },
-    { id: 'offerte', icon: <Tag size={22} strokeWidth={1.5} />,        label: 'Offerte' },
-    { id: 'negozi',  icon: <Store size={22} strokeWidth={1.5} />,      label: 'Negozi' },
-    { id: 'stato',   icon: <Info size={22} strokeWidth={1.5} />,       label: 'Stato' },
+    { id: 'lista',   icon: <ListTodo size={26} strokeWidth={1.5} />,   label: 'Spesa' },
+    { id: 'offerte', icon: <Tag size={26} strokeWidth={1.5} />,        label: 'Offerte' },
+    { id: 'negozi',  icon: <Store size={26} strokeWidth={1.5} />,      label: 'Negozi' },
+    { id: 'stato',   icon: <Info size={26} strokeWidth={1.5} />,       label: 'Stato' },
     { id: 'profilo', icon: utente?.photoURL
-        ? <img src={utente.photoURL} alt="avatar" className="w-6 h-6 rounded-full" style={{ border: activeTab === 'profilo' ? `2px solid ${T.primary}` : '2px solid transparent' }} />
-        : <User size={22} strokeWidth={1.5} />,
+        ? <img src={utente.photoURL} alt="avatar" className="w-7 h-7 rounded-full" style={{ border: activeTab === 'profilo' ? `2px solid ${T.primary}` : '2px solid transparent' }} />
+        : <User size={26} strokeWidth={1.5} />,
       label: 'Profilo'
     },
   ];
 
   return (
-    <div className="w-full max-w-md mx-auto min-h-screen relative overflow-hidden" style={{ background: T.bg, fontFamily: "'DM Sans', sans-serif", color: T.textPrimary }}>
+    <div className="w-full max-w-md mx-auto min-h-screen relative" style={{ background: T.bg, fontFamily: "'DM Sans', sans-serif", color: T.textPrimary, overflowX: 'hidden' }}>
 
       {isDemoMode && (
         <div className="text-[10px] uppercase font-bold text-center py-1 tracking-widest z-50 relative bg-yellow-400 text-yellow-900">
@@ -1045,7 +1043,7 @@ function AppInterna() {
         </div>
       )}
 
-      <div className="h-screen overflow-hidden" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 5.5rem)' }}>
+      <div className="h-screen overflow-hidden" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 6.5rem)' }}>
         {activeTab === 'offerte'  && <TabOfferte offerte={offerte} archivio={archivio} />}
         {activeTab === 'negozi'   && <TabSupermercati offerte={offerte} statoVolantini={statoVolantini} />}
         {activeTab === 'lista'    && <TabListaSpesa offerte={offerte} archivio={archivio} />}
@@ -1053,30 +1051,33 @@ function AppInterna() {
         {activeTab === 'profilo'  && <TabProfilo />}
       </div>
 
-      {/* Floating pill navbar — design Gemini */}
+      {/* Floating pill navbar — centrata con absolute dentro il wrapper relativo */}
       <div
-        className="fixed bottom-5 left-4 right-4 flex justify-around items-center py-3 px-2 z-50"
+        className="absolute bottom-5 flex justify-around items-center z-50"
         style={{
+          left: '1rem',
+          right: '1rem',
           background: T.textPrimary,
           borderRadius: '999px',
-          boxShadow: '0 20px 40px rgba(44,48,38,0.22)',
-          backdropFilter: 'blur(12px)',
-          maxWidth: '428px',
-          margin: '0 auto',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: 'calc(100% - 2rem)',
+          boxShadow: '0 8px 32px rgba(44,48,38,0.35), 0 2px 8px rgba(44,48,38,0.15)',
+          padding: '10px 8px',
         }}
       >
         {NAV_ITEMS.map(item => (
           <button
             key={item.id}
             onClick={() => setActiveTab(item.id)}
-            className="flex flex-col items-center justify-center px-3 py-1 rounded-full transition-all active:scale-90"
-            style={{ color: activeTab === item.id ? '#fff' : 'rgba(255,255,255,0.45)', minWidth: '52px' }}
+            className="flex flex-col items-center justify-center rounded-full transition-all active:scale-90"
+            style={{
+              color: activeTab === item.id ? '#fff' : 'rgba(255,255,255,0.4)',
+              minWidth: '60px',
+              padding: '6px 8px',
+            }}
           >
             {item.icon}
-            <span className="text-[9px] mt-1 font-medium tracking-wide">{item.label}</span>
+            <span style={{ fontSize: '11px', marginTop: '4px', fontWeight: 500, letterSpacing: '0.02em' }}>
+              {item.label}
+            </span>
           </button>
         ))}
       </div>

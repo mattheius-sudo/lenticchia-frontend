@@ -22,7 +22,10 @@ import {
   Receipt,
   TrendingDown,
   X,
-  Sprout
+  Sprout,
+  Camera,
+  CheckCircle,
+  Loader
 } from 'lucide-react';
 
 // ─── Font import (Lora + DM Sans via Google Fonts) ───────────────────────────
@@ -851,6 +854,236 @@ const TabProfilo = () => {
   );
 };
 
+// ─── Tab Invia Scontrino ─────────────────────────────────────────────────────
+
+const TabScontrino = () => {
+  const { utente } = useAuth();
+  const [stato, setStato] = useState('idle'); // idle | caricando | successo | errore
+  const [messaggio, setMessaggio] = useState('');
+  const [puntiAnimati, setPuntiAnimati] = useState(false);
+  const inputRef = React.useRef(null);
+
+  const gestisciFoto = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Valida che sia un'immagine
+    if (!file.type.startsWith('image/')) {
+      setStato('errore');
+      setMessaggio('Seleziona un'immagine dello scontrino.');
+      return;
+    }
+
+    // Valida dimensione max 4MB
+    if (file.size > 4 * 1024 * 1024) {
+      setStato('errore');
+      setMessaggio('Immagine troppo grande. Scatta una foto più ravvicinata.');
+      return;
+    }
+
+    setStato('caricando');
+    setMessaggio('');
+
+    try {
+      // Converti in base64 con compressione
+      const base64 = await comprimiImmagine(file);
+
+      // Salva in coda_scontrini su Firestore
+      const { addDoc, collection, serverTimestamp } = await import('firebase/firestore');
+      const { db } = await import('./firebase');
+
+      await addDoc(collection(db, 'coda_scontrini'), {
+        uid: utente.uid,
+        immagine_b64: base64,
+        stato: 'in_attesa',
+        data_caricamento: serverTimestamp(),
+        note_utente: '',
+      });
+
+      setStato('successo');
+      // Animazione punti dopo 600ms
+      setTimeout(() => setPuntiAnimati(true), 600);
+      // Reset dopo 5 secondi
+      setTimeout(() => {
+        setStato('idle');
+        setPuntiAnimati(false);
+        if (inputRef.current) inputRef.current.value = '';
+      }, 5000);
+
+    } catch (err) {
+      console.error('Errore caricamento scontrino:', err);
+      setStato('errore');
+      setMessaggio('Errore nel caricamento. Riprova.');
+    }
+  };
+
+  // Comprime l'immagine a max 800px e qualità 70%
+  const comprimiImmagine = (file) => new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const maxDim = 1200;
+      let { width, height } = img;
+      if (width > maxDim || height > maxDim) {
+        if (width > height) { height = Math.round(height * maxDim / width); width = maxDim; }
+        else { width = Math.round(width * maxDim / height); height = maxDim; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL('image/jpeg', 0.70));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+
+  return (
+    <div className="flex flex-col h-full overflow-y-auto pb-28" style={{ background: T.bg }}>
+      {/* Header */}
+      <div className="px-5 pt-8 pb-6" style={{ background: T.primary }}>
+        <h2 style={{ fontFamily: "'Lora', serif", fontSize: '26px', fontWeight: 500, color: '#fff', marginBottom: '4px' }}>
+          Invia Scontrino
+        </h2>
+        <p className="text-sm" style={{ color: 'rgba(255,255,255,0.75)' }}>
+          Fotografa lo scontrino — elaboriamo stanotte.
+        </p>
+      </div>
+
+      <div className="px-4 -mt-4 relative z-10">
+
+        {/* Stato: idle — bottone principale */}
+        {stato === 'idle' && (
+          <div className="rounded-[24px] p-6 mb-4 animate-fade-in-up"
+            style={{ background: T.surface, boxShadow: '0 8px 30px rgba(44,48,38,0.1)', border: `1px solid ${T.border}` }}>
+
+            {/* Area click per fotocamera */}
+            <label htmlFor="scontrino-input" className="block cursor-pointer">
+              <div
+                className="rounded-[20px] flex flex-col items-center justify-center gap-4 py-12 mb-5 transition-all active:scale-[0.98]"
+                style={{ background: T.bg, border: `2px dashed ${T.border}` }}
+              >
+                <div className="w-16 h-16 rounded-full flex items-center justify-center"
+                  style={{ background: '#EEF2E4' }}>
+                  <Camera size={32} strokeWidth={1.5} style={{ color: T.primary }} />
+                </div>
+                <div className="text-center">
+                  <p className="font-medium" style={{ color: T.textPrimary, fontSize: '17px' }}>
+                    Fotografa lo scontrino
+                  </p>
+                  <p className="text-sm mt-1" style={{ color: T.textSec }}>
+                    Tocca qui per aprire la fotocamera
+                  </p>
+                </div>
+              </div>
+            </label>
+
+            {/* Input nascosto — accetta foto dalla fotocamera */}
+            <input
+              id="scontrino-input"
+              ref={inputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={gestisciFoto}
+            />
+
+            {/* Info punti */}
+            <div className="rounded-2xl p-4" style={{ background: '#EEF2E4', border: `1px solid #C8D9A0` }}>
+              <p className="text-sm font-medium mb-2" style={{ color: T.primary }}>
+                Guadagni punti per ogni scontrino:
+              </p>
+              <div className="space-y-1">
+                {[
+                  { label: 'Scontrino caricato', punti: '+15 pt' },
+                  { label: 'Più di 10 prodotti', punti: '+5 pt' },
+                  { label: 'Primo della settimana', punti: '+5 pt' },
+                ].map((r, i) => (
+                  <div key={i} className="flex justify-between text-sm">
+                    <span style={{ color: T.textSec }}>{r.label}</span>
+                    <span className="font-semibold" style={{ color: T.primary }}>{r.punti}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Stato: caricando */}
+        {stato === 'caricando' && (
+          <div className="rounded-[24px] p-8 mb-4 flex flex-col items-center gap-4 animate-fade-in-up"
+            style={{ background: T.surface, boxShadow: '0 8px 30px rgba(44,48,38,0.1)', border: `1px solid ${T.border}` }}>
+            <Loader size={40} strokeWidth={1.5} className="animate-spin" style={{ color: T.primary }} />
+            <p className="font-medium text-center" style={{ color: T.textPrimary, fontSize: '17px' }}>
+              Caricamento in corso...
+            </p>
+            <p className="text-sm text-center" style={{ color: T.textSec }}>
+              Stiamo salvando il tuo scontrino
+            </p>
+          </div>
+        )}
+
+        {/* Stato: successo */}
+        {stato === 'successo' && (
+          <div className="rounded-[24px] p-8 mb-4 flex flex-col items-center gap-5 animate-spring"
+            style={{ background: T.primary, boxShadow: `0 12px 40px rgba(100,113,68,0.3)` }}>
+            <CheckCircle size={52} strokeWidth={1.5} className="text-white" />
+            <div className="text-center">
+              <p style={{ fontFamily: "'Lora', serif", fontSize: '22px', fontWeight: 500, color: '#fff', marginBottom: '8px' }}>
+                Ricevuto!
+              </p>
+              <p className="text-sm" style={{ color: 'rgba(255,255,255,0.85)' }}>
+                Elaboriamo stanotte e ti assegniamo i punti.
+              </p>
+            </div>
+
+            {/* Animazione punti */}
+            {puntiAnimati && (
+              <div className="rounded-2xl px-6 py-3 animate-spring"
+                style={{ background: 'rgba(255,255,255,0.2)' }}>
+                <p style={{ fontFamily: "'Lora', serif", fontSize: '28px', fontWeight: 500, color: '#fff', textAlign: 'center' }}>
+                  +15 punti 🌿
+                </p>
+                <p className="text-xs text-center mt-1" style={{ color: 'rgba(255,255,255,0.75)' }}>
+                  in arrivo stanotte
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Stato: errore */}
+        {stato === 'errore' && (
+          <div className="rounded-[24px] p-6 mb-4 animate-fade-in-up"
+            style={{ background: T.surface, border: `2px solid #FCA5A5` }}>
+            <p className="font-medium mb-2" style={{ color: '#DC2626', fontSize: '16px' }}>
+              Qualcosa è andato storto
+            </p>
+            <p className="text-sm mb-4" style={{ color: T.textSec }}>{messaggio}</p>
+            <button
+              onClick={() => { setStato('idle'); setMessaggio(''); }}
+              className="w-full py-3 rounded-2xl font-medium text-white"
+              style={{ background: T.textPrimary }}
+            >
+              Riprova
+            </button>
+          </div>
+        )}
+
+        {/* Info privacy — sempre visibile */}
+        {stato === 'idle' && (
+          <div className="rounded-2xl p-4" style={{ background: '#EFF6FF', border: '1px solid #BFDBFE' }}>
+            <p className="text-sm leading-relaxed text-blue-800">
+              <strong>Privacy:</strong> estraiamo solo prodotti e prezzi. Codici fiscali, numeri carta e nomi vengono ignorati automaticamente. L'immagine viene cancellata dopo l'elaborazione.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // ─── Tab Offerte ──────────────────────────────────────────────────────────────
 
 const ORDINAMENTI = [
@@ -1500,13 +1733,13 @@ function AppInterna() {
   }
 
   const NAV_ITEMS = [
-    { id: 'lista',   icon: <ListTodo size={26} strokeWidth={1.5} />,   label: 'Spesa' },
-    { id: 'offerte', icon: <Tag size={26} strokeWidth={1.5} />,        label: 'Offerte' },
-    { id: 'negozi',  icon: <Store size={26} strokeWidth={1.5} />,      label: 'Negozi' },
-    { id: 'stato',   icon: <Info size={26} strokeWidth={1.5} />,       label: 'Stato' },
-    { id: 'profilo', icon: utente?.photoURL
-        ? <img src={utente.photoURL} alt="avatar" className="w-7 h-7 rounded-full" style={{ border: activeTab === 'profilo' ? `2px solid ${T.primary}` : '2px solid transparent' }} />
-        : <User size={26} strokeWidth={1.5} />,
+    { id: 'lista',      icon: <ListTodo size={24} strokeWidth={1.5} />, label: 'Spesa' },
+    { id: 'offerte',    icon: <Tag size={24} strokeWidth={1.5} />,      label: 'Offerte' },
+    { id: 'scontrino',  icon: <Camera size={24} strokeWidth={1.5} />,   label: 'Scontrino' },
+    { id: 'negozi',     icon: <Store size={24} strokeWidth={1.5} />,    label: 'Negozi' },
+    { id: 'profilo',    icon: utente?.photoURL
+        ? <img src={utente.photoURL} alt="avatar" className="w-6 h-6 rounded-full" style={{ border: activeTab === 'profilo' ? `2px solid ${T.primary}` : '2px solid transparent' }} />
+        : <User size={24} strokeWidth={1.5} />,
       label: 'Profilo'
     },
   ];
@@ -1521,11 +1754,12 @@ function AppInterna() {
       )}
 
       <div className="h-screen overflow-hidden" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 6.5rem)' }}>
-        {activeTab === 'offerte'  && <TabOfferte offerte={offerte} archivio={archivio} />}
-        {activeTab === 'negozi'   && <TabSupermercati offerte={offerte} statoVolantini={statoVolantini} />}
-        {activeTab === 'lista'    && <TabListaSpesa offerte={offerte} archivio={archivio} />}
-        {activeTab === 'stato'    && <TabStato statoVolantini={statoVolantini} />}
-        {activeTab === 'profilo'  && <TabProfilo />}
+        {activeTab === 'offerte'    && <TabOfferte offerte={offerte} archivio={archivio} />}
+        {activeTab === 'negozi'     && <TabSupermercati offerte={offerte} statoVolantini={statoVolantini} />}
+        {activeTab === 'lista'      && <TabListaSpesa offerte={offerte} archivio={archivio} />}
+        {activeTab === 'stato'      && <TabStato statoVolantini={statoVolantini} />}
+        {activeTab === 'scontrino'  && <TabScontrino />}
+        {activeTab === 'profilo'    && <TabProfilo />}
       </div>
 
       {/* Floating pill navbar — centrata con absolute dentro il wrapper relativo */}

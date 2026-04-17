@@ -1239,13 +1239,17 @@ const TabListaSpesa = ({ offerte, archivio = [] }) => {
     try { return JSON.parse(localStorage.getItem('lenticchia_storico') || '[]'); } catch { return []; }
   });
 
-  // Sincronizza lista da cloud quando arriva (solo se loggato e diversa dall'attuale)
+  // Sincronizza lista da cloud SOLO al primo caricamento
+  // Non reagire ai cambiamenti successivi — causerebbero sovrascrittura
+  // mentre l'utente sta scrivendo
+  const [listaCaricata, setListaCaricata] = useState(false);
   useEffect(() => {
-    if (isLoggedIn && listaSpesa?.items?.length) {
+    if (isLoggedIn && listaSpesa?.items?.length && !listaCaricata) {
       const testoCloud = listaSpesa.items.join('\n');
       setListaText(testoCloud);
+      setListaCaricata(true);
     }
-  }, [listaSpesa, isLoggedIn]);
+  }, [listaSpesa, isLoggedIn, listaCaricata]);
 
   const handleListaChange = (nuovoTesto) => {
     setListaText(nuovoTesto);

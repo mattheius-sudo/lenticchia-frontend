@@ -273,7 +273,8 @@ const SchermataSelezioneSupermarket = ({ statoVolantini, onConferma }) => {
   const insegneDisponibili = statoVolantini.reduce((acc, stato) => {
     const key = stato.insegna;
     if (!acc[key]) acc[key] = { insegna: key, tipo: stato.tipo || 'locale', sedi: [] };
-    const sedi = stato.sedi || [];
+    const sediRaw = stato.sedi;
+    const sedi = Array.isArray(sediRaw) ? sediRaw : (sediRaw ? [String(sediRaw)] : []);
     sedi.forEach(s => { if (s !== 'nazionale' && !acc[key].sedi.includes(s)) acc[key].sedi.push(s); });
     return acc;
   }, {});

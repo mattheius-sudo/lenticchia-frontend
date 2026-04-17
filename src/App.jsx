@@ -1485,7 +1485,7 @@ const TabListaSpesa = ({ offerte, archivio = [] }) => {
           <div className="animate-fade-in-up">
             {risultato.vincitore?.trovati.length > 0 ? (
               <>
-                {/* Verdetto vincitore — effetto molla via CSS */}
+                {/* Verdetto vincitore con prodotti trovati inline */}
                 <div className="rounded-[24px] p-6 mb-4 relative overflow-hidden animate-spring"
                   style={{ background: T.primary, boxShadow: `0 12px 40px rgba(100,113,68,0.3)` }}>
                   <div className="absolute top-0 right-0 px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-bl-2xl"
@@ -1493,12 +1493,44 @@ const TabListaSpesa = ({ offerte, archivio = [] }) => {
                     Miglior scelta
                   </div>
                   <p className="text-xs uppercase tracking-wider mb-2" style={{ color: 'rgba(255,255,255,0.7)' }}>Conviene andare da</p>
-                  <h2 style={{ fontFamily: "'Lora', serif", fontSize: '28px', fontWeight: 500, color: '#fff', marginBottom: '12px' }}>
+                  <h2 style={{ fontFamily: "'Lora', serif", fontSize: '28px', fontWeight: 500, color: '#fff', marginBottom: '16px' }}>
                     {risultato.vincitore.insegna}
                   </h2>
-                  <p className="text-sm mb-4" style={{ color: 'rgba(255,255,255,0.85)' }}>
-                    <strong style={{ color: '#fff' }}>{risultato.vincitore.trovati.length}</strong> prodotti della tua lista sono in offerta questa settimana.
-                  </p>
+
+                  {/* Prodotti trovati — inline nella card verde */}
+                  <div className="space-y-2 mb-4">
+                    {risultato.vincitore.trovati.map((t, idx) => (
+                      <div key={idx} className="flex justify-between items-center px-3 py-2.5 rounded-2xl"
+                        style={{ background: 'rgba(255,255,255,0.15)' }}>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-white truncate">
+                            {t.offerta.nome}{t.offerta.marca ? ` · ${t.offerta.marca}` : ''}
+                          </div>
+                          <div className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.65)' }}>
+                            cercato: "{t.ricerca}"{t.offerta.grammatura ? ` · ${t.offerta.grammatura}` : ''}
+                          </div>
+                        </div>
+                        <div className="font-semibold ml-3 shrink-0 px-2.5 py-1 rounded-xl"
+                          style={{ background: 'rgba(255,255,255,0.25)', color: '#fff', fontFamily: "'Lora', serif", fontSize: '16px' }}>
+                          {formattaPrezzo(t.offerta.prezzo)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Non trovati — inline più discreti */}
+                  {risultato.vincitore.nonTrovati.length > 0 && (
+                    <div className="mb-4 px-3 py-2.5 rounded-2xl" style={{ background: 'rgba(0,0,0,0.15)' }}>
+                      <p className="text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                        Non in offerta questa settimana:
+                      </p>
+                      <p className="text-sm" style={{ color: 'rgba(255,255,255,0.8)' }}>
+                        {risultato.vincitore.nonTrovati.join(', ')}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Totale */}
                   <div className="rounded-2xl p-3 flex justify-between items-center" style={{ background: 'rgba(255,255,255,0.15)' }}>
                     <span className="text-sm" style={{ color: 'rgba(255,255,255,0.85)' }}>Totale offerte trovate</span>
                     <span style={{ fontFamily: "'Lora', serif", fontSize: '24px', fontWeight: 500, color: '#fff' }}>
@@ -1535,47 +1567,7 @@ const TabListaSpesa = ({ offerte, archivio = [] }) => {
                   </div>
                 )}
 
-                {/* Trovati */}
-                <h4 className="text-xs uppercase tracking-wider font-medium mb-3 flex items-center gap-2" style={{ color: T.textSec }}>
-                  <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px]" style={{ background: '#EEF2E4', color: T.primary }}>✓</span>
-                  In offerta questa settimana
-                </h4>
-                <div className="space-y-2 mb-4">
-                  {risultato.vincitore.trovati.map((t, idx) => (
-                    <div key={idx} className="flex justify-between items-center p-4 rounded-2xl"
-                      style={{ background: T.surface, border: `1px solid ${T.border}` }}>
-                      <div>
-                        <div className="text-xs mb-0.5 uppercase tracking-wider" style={{ color: T.textSec }}>"{t.ricerca}"</div>
-                        <div className="text-sm font-medium" style={{ color: T.textPrimary }}>
-                          {t.offerta.nome}{t.offerta.marca ? ` · ${t.offerta.marca}` : ''}
-                        </div>
-                        <div className="text-xs mt-0.5" style={{ color: T.textSec }}>{t.offerta.grammatura}</div>
-                      </div>
-                      <div className="font-semibold text-sm px-3 py-1.5 rounded-xl shrink-0 ml-3"
-                        style={{ background: '#EEF2E4', color: T.primary, fontFamily: "'Lora', serif" }}>
-                        {formattaPrezzo(t.offerta.prezzo)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
 
-                {/* Non trovati */}
-                {risultato.vincitore.nonTrovati.length > 0 && (
-                  <>
-                    <h4 className="text-xs uppercase tracking-wider font-medium mb-3 flex items-center gap-2" style={{ color: T.textSec }}>
-                      <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px]" style={{ background: T.border, color: T.textSec }}>✕</span>
-                      Non in offerta questa settimana
-                    </h4>
-                    <div className="rounded-2xl p-4 mb-6 space-y-1" style={{ background: T.surface, border: `1px solid ${T.border}` }}>
-                      {risultato.vincitore.nonTrovati.map((item, idx) => (
-                        <div key={idx} className="flex items-center gap-2 text-sm" style={{ color: T.textSec }}>
-                          <span className="w-1 h-1 rounded-full shrink-0" style={{ background: T.border }}></span>
-                          {item}
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
               </>
             ) : (
               <div className="rounded-[20px] p-6 text-center" style={{ background: T.surface, border: `1px solid ${T.border}` }}>

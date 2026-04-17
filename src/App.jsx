@@ -10,7 +10,6 @@ import {
   Clock,
   AlertCircle,
   Star,
-  ShoppingCart,
   SlidersHorizontal,
   History,
   Store,
@@ -21,12 +20,89 @@ import {
   Shield,
   Receipt,
   TrendingDown,
-  X
+  X,
+  Sprout
 } from 'lucide-react';
 
-// ==========================================
-// 1. COSTANTI (invariate)
-// ==========================================
+// ─── Font import (Lora + DM Sans via Google Fonts) ───────────────────────────
+// Aggiunto nel <head> di index.html — qui solo il riferimento per chiarezza:
+// <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+
+// ─── Design Tokens ────────────────────────────────────────────────────────────
+const T = {
+  bg:          '#F9F8F4',  // Farina
+  surface:     '#FFFFFF',
+  primary:     '#647144',  // Verde Lenticchia
+  primaryDark: '#525E36',  // Verde Oliva Scuro
+  accent:      '#D47A4A',  // Terracotta
+  textPrimary: '#2C3026',  // Inchiostro Oliva
+  textSec:     '#858A7A',  // Salvia Cenere
+  border:      '#EBE6DC',  // Corda
+};
+
+// ─── Icona Lenticchia ─────────────────────────────────────────────────────────
+const IconaLenticchia = ({ size = 24, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+    <ellipse cx="12" cy="12" rx="10" ry="6.5" fill="currentColor" opacity="0.12"/>
+    <ellipse cx="12" cy="12" rx="10" ry="6.5" stroke="currentColor" strokeWidth="1.6"/>
+    <ellipse cx="12" cy="12" rx="5" ry="3.2" fill="currentColor" opacity="0.3"/>
+    <line x1="2" y1="12" x2="22" y2="12" stroke="currentColor" strokeWidth="1" strokeDasharray="2 2.5" opacity="0.45"/>
+    <line x1="12" y1="5.5" x2="12" y2="18.5" stroke="currentColor" strokeWidth="1" strokeDasharray="2 2.5" opacity="0.45"/>
+  </svg>
+);
+
+// ─── Badge insegne — sistema pastello (design system Gemini) ──────────────────
+// Invece di sfondi pieni, background 10% opacità + testo + bordo colorati
+const BADGE_INSEGNE = {
+  'Lidl':        'bg-yellow-50  text-yellow-800  border border-yellow-200',
+  'PIM/Agora':   'bg-emerald-50 text-emerald-800 border border-emerald-200',
+  'PIM/Agorà':   'bg-emerald-50 text-emerald-800 border border-emerald-200',
+  'Agora':       'bg-emerald-50 text-emerald-800 border border-emerald-200',
+  'Agorà':       'bg-emerald-50 text-emerald-800 border border-emerald-200',
+  'PIM':         'bg-emerald-50 text-emerald-800 border border-emerald-200',
+  'CTS':         'bg-blue-50    text-blue-800    border border-blue-200',
+  'Eurospin':    'bg-red-50     text-red-800     border border-red-200',
+  'Todis':       'bg-orange-50  text-orange-800  border border-orange-200',
+  'MD Discount': 'bg-purple-50  text-purple-800  border border-purple-200',
+  'MD':          'bg-purple-50  text-purple-800  border border-purple-200',
+  'Sacoph':      'bg-teal-50    text-teal-800    border border-teal-200',
+  'Elite':       'bg-amber-50   text-amber-800   border border-amber-200',
+  'default':     'bg-stone-50   text-stone-700   border border-stone-200',
+};
+
+// Badge card negozi (sfondo pieno per i tile della griglia)
+const TILE_INSEGNE = {
+  'Lidl':        'bg-yellow-400  text-yellow-900',
+  'PIM/Agora':   'bg-emerald-700 text-white',
+  'PIM/Agorà':   'bg-emerald-700 text-white',
+  'Agora':       'bg-emerald-700 text-white',
+  'Agorà':       'bg-emerald-700 text-white',
+  'PIM':         'bg-emerald-700 text-white',
+  'CTS':         'bg-blue-700    text-white',
+  'Eurospin':    'bg-red-700     text-white',
+  'Todis':       'bg-orange-600  text-white',
+  'MD Discount': 'bg-purple-700  text-white',
+  'MD':          'bg-purple-700  text-white',
+  'Sacoph':      'bg-teal-700    text-white',
+  'Elite':       'bg-amber-700   text-white',
+  'default':     'bg-stone-600   text-white',
+};
+
+const getBadgeInsegna = (insegna) => {
+  if (!insegna) return BADGE_INSEGNE['default'];
+  if (BADGE_INSEGNE[insegna]) return BADGE_INSEGNE[insegna];
+  const key = Object.keys(BADGE_INSEGNE).find(k => k !== 'default' && insegna.toLowerCase().includes(k.toLowerCase()));
+  return key ? BADGE_INSEGNE[key] : BADGE_INSEGNE['default'];
+};
+
+const getTileInsegna = (insegna) => {
+  if (!insegna) return TILE_INSEGNE['default'];
+  if (TILE_INSEGNE[insegna]) return TILE_INSEGNE[insegna];
+  const key = Object.keys(TILE_INSEGNE).find(k => k !== 'default' && insegna.toLowerCase().includes(k.toLowerCase()));
+  return key ? TILE_INSEGNE[key] : TILE_INSEGNE['default'];
+};
+
+// ─── Costanti ─────────────────────────────────────────────────────────────────
 
 const CATEGORIE = [
   { id: 'tutte', label: 'Tutto' },
@@ -40,46 +116,16 @@ const CATEGORIE = [
   { id: 'casa_igiene', label: 'Casa & Igiene' }
 ];
 
-const COLORI_INSEGNE = {
-  'Lidl': 'bg-[#FFD700] text-black',
-  'PIM/Agora': 'bg-[#2E7D32] text-white',
-  'PIM/Agorà': 'bg-[#2E7D32] text-white',
-  'Agora': 'bg-[#2E7D32] text-white',
-  'Agorà': 'bg-[#2E7D32] text-white',
-  'PIM': 'bg-[#2E7D32] text-white',
-  'CTS': 'bg-[#1565C0] text-white',
-  'Eurospin': 'bg-[#C62828] text-white',
-  'Todis': 'bg-[#E65100] text-white',
-  'MD Discount': 'bg-[#6A1B9A] text-white',
-  'MD': 'bg-[#6A1B9A] text-white',
-  'Sacoph': 'bg-[#00695C] text-white',
-  'Elite': 'bg-[#B8860B] text-white',
-  'default': 'bg-gray-600 text-white'
-};
-
-const getColorInsegna = (insegna) => {
-  if (!insegna) return COLORI_INSEGNE['default'];
-  if (COLORI_INSEGNE[insegna]) return COLORI_INSEGNE[insegna];
-  const key = Object.keys(COLORI_INSEGNE).find(k =>
-    k !== 'default' && insegna.toLowerCase().includes(k.toLowerCase())
-  );
-  return key ? COLORI_INSEGNE[key] : COLORI_INSEGNE['default'];
-};
-
-// ==========================================
-// 2. DATI MOCK (invariati)
-// ==========================================
-
 const MOCK_OFFERTE = [
-  { id: '1', nome: 'Pasta Fusilli', marca: 'Barilla', grammatura: '500g', categoria: 'dispensa', prezzo: 0.79, prezzo_kg: 1.58, insegna: 'Lidl', quartiere: 'Roma', fidelity_req: false, valido_dal: '2026-04-10', valido_fino: '2026-04-18', data_scansione: '2026-04-10' },
-  { id: '2', nome: 'Pasta Penne Rigate', marca: 'De Cecco', grammatura: '500g', categoria: 'dispensa', prezzo: 0.99, prezzo_kg: 1.98, insegna: 'PIM/Agora', quartiere: 'Roma', fidelity_req: true, valido_dal: '2026-04-12', valido_fino: '2026-04-16', data_scansione: '2026-04-12' },
-  { id: '3', nome: 'Latte Parzialmente Scremato', marca: 'Granarolo', grammatura: '1L', categoria: 'bevande', prezzo: 0.89, prezzo_kg: 0.89, insegna: 'Todis', quartiere: 'Roma', fidelity_req: false, valido_dal: '2026-04-14', valido_fino: '2026-04-20', data_scansione: '2026-04-14' },
-  { id: '4', nome: 'Filetto di Maiale', marca: null, grammatura: 'al kg', categoria: 'carne', prezzo: 6.90, prezzo_kg: 6.90, insegna: 'Eurospin', quartiere: 'Roma', fidelity_req: false, valido_dal: '2026-04-10', valido_fino: '2026-04-17', data_scansione: '2026-04-10' },
-  { id: '5', nome: 'Mele Fuji', marca: 'Melinda', grammatura: 'al kg', categoria: 'frutta_verdura', prezzo: 1.49, prezzo_kg: 1.49, insegna: 'CTS', quartiere: 'Roma', fidelity_req: true, valido_dal: '2026-04-15', valido_fino: '2026-04-25', data_scansione: '2026-04-15' },
-  { id: '6', nome: 'Passata di Pomodoro', marca: 'Mutti', grammatura: '700g', categoria: 'dispensa', prezzo: 0.85, prezzo_kg: 1.21, insegna: 'MD Discount', quartiere: 'Roma', fidelity_req: false, valido_dal: '2026-04-10', valido_fino: '2026-04-16', data_scansione: '2026-04-10' },
-  { id: '7', nome: 'Pane Bauletto', marca: 'Mulino Bianco', grammatura: '400g', categoria: 'dispensa', prezzo: 1.10, prezzo_kg: 2.75, insegna: 'Lidl', quartiere: 'Roma', fidelity_req: false, valido_dal: '2026-04-10', valido_fino: '2026-04-18', data_scansione: '2026-04-10' },
-  { id: '8', nome: 'Orata Fresca', marca: null, grammatura: 'al kg', categoria: 'pesce', prezzo: 9.90, prezzo_kg: 9.90, insegna: 'PIM/Agora', quartiere: 'Roma', fidelity_req: false, valido_dal: '2026-04-12', valido_fino: '2026-04-16', data_scansione: '2026-04-12' },
-  { id: '9', nome: 'Detersivo Piatti', marca: 'Svelto', grammatura: '1L', categoria: 'casa_igiene', prezzo: 1.25, prezzo_kg: 1.25, insegna: 'Sacoph', quartiere: 'Roma', fidelity_req: true, valido_dal: '2026-04-15', valido_fino: '2026-04-30', data_scansione: '2026-04-15' },
+  { id: '1', nome: 'Pasta Fusilli', marca: 'Barilla', grammatura: '500g', categoria: 'dispensa', prezzo: 0.79, prezzo_kg: 1.58, insegna: 'Lidl', quartiere: 'Roma', fidelity_req: false, valido_dal: '2026-04-10', valido_fino: '2026-04-18' },
+  { id: '2', nome: 'Pasta Penne Rigate', marca: 'De Cecco', grammatura: '500g', categoria: 'dispensa', prezzo: 0.99, prezzo_kg: 1.98, insegna: 'PIM/Agora', quartiere: 'Roma', fidelity_req: true, valido_dal: '2026-04-12', valido_fino: '2026-04-16' },
+  { id: '3', nome: 'Latte Parzialmente Scremato', marca: 'Granarolo', grammatura: '1L', categoria: 'bevande', prezzo: 0.89, prezzo_kg: 0.89, insegna: 'Todis', quartiere: 'Roma', fidelity_req: false, valido_dal: '2026-04-14', valido_fino: '2026-04-20' },
+  { id: '4', nome: 'Filetto di Maiale', marca: null, grammatura: 'al kg', categoria: 'carne', prezzo: 6.90, prezzo_kg: 6.90, insegna: 'Eurospin', quartiere: 'Roma', fidelity_req: false, valido_dal: '2026-04-10', valido_fino: '2026-04-17' },
+  { id: '5', nome: 'Mele Fuji', marca: 'Melinda', grammatura: 'al kg', categoria: 'frutta_verdura', prezzo: 1.49, prezzo_kg: 1.49, insegna: 'CTS', quartiere: 'Roma', fidelity_req: true, valido_dal: '2026-04-15', valido_fino: '2026-04-25' },
+  { id: '6', nome: 'Passata di Pomodoro', marca: 'Mutti', grammatura: '700g', categoria: 'dispensa', prezzo: 0.85, prezzo_kg: 1.21, insegna: 'MD Discount', quartiere: 'Roma', fidelity_req: false, valido_dal: '2026-04-10', valido_fino: '2026-04-16' },
+  { id: '7', nome: 'Pane Bauletto', marca: 'Mulino Bianco', grammatura: '400g', categoria: 'dispensa', prezzo: 1.10, prezzo_kg: 2.75, insegna: 'Lidl', quartiere: 'Roma', fidelity_req: false, valido_dal: '2026-04-10', valido_fino: '2026-04-18' },
+  { id: '8', nome: 'Orata Fresca', marca: null, grammatura: 'al kg', categoria: 'pesce', prezzo: 9.90, prezzo_kg: 9.90, insegna: 'PIM/Agora', quartiere: 'Roma', fidelity_req: false, valido_dal: '2026-04-12', valido_fino: '2026-04-16' },
+  { id: '9', nome: 'Detersivo Piatti', marca: 'Svelto', grammatura: '1L', categoria: 'casa_igiene', prezzo: 1.25, prezzo_kg: 1.25, insegna: 'Sacoph', quartiere: 'Roma', fidelity_req: true, valido_dal: '2026-04-15', valido_fino: '2026-04-30' },
 ];
 
 const MOCK_STATO = [
@@ -92,115 +138,118 @@ const MOCK_STATO = [
   { id: 'Sacoph', insegna: 'Sacoph', valido_fino: '2026-04-30', n_prodotti: 45 },
 ];
 
-// ==========================================
-// 3. UTILITIES (invariate)
-// ==========================================
+// ─── Utilities ────────────────────────────────────────────────────────────────
 
 const getOggi = () => new Date().toISOString().split('T')[0];
-const getDomani = () => {
-  const t = new Date();
-  t.setDate(t.getDate() + 1);
-  return t.toISOString().split('T')[0];
-};
+const getDomani = () => { const t = new Date(); t.setDate(t.getDate() + 1); return t.toISOString().split('T')[0]; };
 const calcGiorniRimanenti = (d) => Math.ceil((new Date(d) - new Date(getOggi())) / 86400000);
 const formattaPrezzo = (p) => new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(p);
 
 const LIVELLI = [
-  { nome: 'Osservatore',  min: 0,    colore: 'bg-gray-100 text-gray-600' },
-  { nome: 'Esploratore',  min: 50,   colore: 'bg-blue-100 text-blue-700' },
-  { nome: 'Cacciatore',   min: 150,  colore: 'bg-green-100 text-green-700' },
-  { nome: 'Stratega',     min: 400,  colore: 'bg-purple-100 text-purple-700' },
-  { nome: 'Guru',         min: 1000, colore: 'bg-amber-100 text-amber-700' },
+  { nome: 'Osservatore', min: 0,    colore: 'bg-stone-100 text-stone-600' },
+  { nome: 'Esploratore', min: 50,   colore: 'bg-blue-50 text-blue-700 border border-blue-200' },
+  { nome: 'Cacciatore',  min: 150,  colore: 'bg-[#EEF2E4] text-[#525E36] border border-[#C8D9A0]' },
+  { nome: 'Stratega',    min: 400,  colore: 'bg-purple-50 text-purple-700 border border-purple-200' },
+  { nome: 'Guru',        min: 1000, colore: 'bg-amber-50 text-amber-700 border border-amber-200' },
 ];
 
-const getLivello = (punti = 0) =>
-  [...LIVELLI].reverse().find(l => punti >= l.min) || LIVELLI[0];
+const getLivello = (p = 0) => [...LIVELLI].reverse().find(l => p >= l.min) || LIVELLI[0];
+const getProssimoLivello = (p = 0) => { const i = LIVELLI.findIndex(l => p < l.min); return i === -1 ? null : LIVELLI[i]; };
 
-const getProssimoLivello = (punti = 0) => {
-  const idx = LIVELLI.findIndex(l => punti < l.min);
-  return idx === -1 ? null : LIVELLI[idx];
-};
+// ─── ProductCard (design Gemini) ──────────────────────────────────────────────
 
-// ==========================================
-// 4. COMPONENTI CONDIVISI (invariati)
-// ==========================================
-
-const ProductCard = ({ offerta, storico = null, archivio = [] }) => {
+const ProductCard = ({ offerta, storico = null, archivio = [], index = 0 }) => {
   const oggi = getOggi();
   const domani = getDomani();
   const isScadenzaOggi = offerta.valido_fino === oggi;
   const isScadenzaDomani = offerta.valido_fino === domani;
-  const badgeColor = getColorInsegna(offerta.insegna);
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-3 flex flex-col gap-2">
-      <div className="flex justify-between items-start">
-        <div className="flex-1 pr-2">
-          <h3 className="font-semibold text-gray-900 leading-tight">
-            {offerta.nome}{offerta.marca && <span className="text-gray-500 font-normal"> - {offerta.marca}</span>}
+    <div
+      className="bg-white rounded-[20px] border p-5 mb-3 flex flex-col gap-3 active:scale-[0.98] transition-transform"
+      style={{
+        borderColor: T.border,
+        boxShadow: '0 4px 24px rgba(44,48,38,0.05)',
+        animationDelay: `${index * 50}ms`
+      }}
+    >
+      <div className="flex justify-between items-start gap-3">
+        <div className="flex-1">
+          <h3 className="font-medium leading-snug" style={{ color: T.textPrimary, fontFamily: "'DM Sans', sans-serif", fontSize: '15px' }}>
+            {offerta.nome}
           </h3>
-          <p className="text-sm text-gray-500 mt-1">{offerta.grammatura}</p>
+          {offerta.marca && (
+            <p className="text-xs mt-0.5 uppercase tracking-wider font-medium" style={{ color: T.textSec }}>
+              {offerta.marca}
+            </p>
+          )}
+          {offerta.grammatura && (
+            <p className="text-xs mt-1" style={{ color: T.textSec }}>{offerta.grammatura}</p>
+          )}
         </div>
-        <div className="text-right">
-          <div className="text-xl font-bold text-gray-900">{formattaPrezzo(offerta.prezzo)}</div>
-          {offerta.prezzo_kg && <div className="text-xs text-gray-500">{formattaPrezzo(offerta.prezzo_kg)}/kg</div>}
+        <div className="text-right shrink-0">
+          <div className="text-2xl font-semibold" style={{ color: T.textPrimary, fontFamily: "'Lora', serif" }}>
+            {formattaPrezzo(offerta.prezzo)}
+          </div>
+          {offerta.prezzo_kg && (
+            <div className="text-xs mt-0.5" style={{ color: T.textSec }}>
+              {formattaPrezzo(offerta.prezzo_kg)}/kg
+            </div>
+          )}
           {storico && storico.prezzo !== offerta.prezzo && (
-            <div className={`text-xs font-bold mt-0.5 ${storico.prezzo > offerta.prezzo ? 'text-green-600' : 'text-red-500'}`}>
-              {storico.prezzo > offerta.prezzo ? '▼ sceso' : '▲ salito'} da {formattaPrezzo(storico.prezzo)}
+            <div className={`text-xs font-semibold mt-1 ${storico.prezzo > offerta.prezzo ? 'text-emerald-600' : 'text-red-500'}`}>
+              {storico.prezzo > offerta.prezzo ? '▼' : '▲'} da {formattaPrezzo(storico.prezzo)}
             </div>
           )}
         </div>
       </div>
 
+      {/* Sparkline storico prezzi */}
       {archivio && (() => {
         const storici = archivio
-          .filter(a => a.insegna === offerta.insegna && a.nome && offerta.nome &&
-            a.nome.toLowerCase() === offerta.nome.toLowerCase() && a.prezzo)
-          .sort((a, b) => (a.valido_fino || '').localeCompare(b.valido_fino || ''))
-          .slice(-6);
+          .filter(a => a.insegna === offerta.insegna && a.nome?.toLowerCase() === offerta.nome?.toLowerCase() && a.prezzo)
+          .sort((a, b) => (a.valido_fino || '').localeCompare(b.valido_fino || '')).slice(-6);
         if (storici.length < 2) return null;
         const prezzi = [...storici.map(s => s.prezzo), offerta.prezzo];
-        const min = Math.min(...prezzi), max = Math.max(...prezzi);
-        const range = max - min || 1;
-        const W = 80, H = 24;
-        const pts = prezzi.map((p, i) => {
-          const x = (i / (prezzi.length - 1)) * W;
-          const y = H - ((p - min) / range) * (H - 4) - 2;
-          return `${x},${y}`;
-        }).join(' ');
+        const min = Math.min(...prezzi), max = Math.max(...prezzi), range = max - min || 1;
+        const W = 72, H = 20;
+        const pts = prezzi.map((p, i) => `${(i / (prezzi.length - 1)) * W},${H - ((p - min) / range) * (H - 4) - 2}`).join(' ');
         const trend = prezzi[prezzi.length - 1] <= prezzi[0];
         return (
-          <div className="mt-2 flex items-center gap-2">
+          <div className="flex items-center gap-2 pt-1">
             <svg width={W} height={H} className="overflow-visible">
-              <polyline fill="none" stroke={trend ? '#16a34a' : '#dc2626'} strokeWidth="1.5" points={pts} />
-              {prezzi.map((p, i) => {
-                const x = (i / (prezzi.length - 1)) * W;
-                const y = H - ((p - min) / range) * (H - 4) - 2;
-                return <circle key={i} cx={x} cy={y} r="2" fill={trend ? '#16a34a' : '#dc2626'} />;
-              })}
+              <polyline fill="none" stroke={trend ? T.primary : '#dc2626'} strokeWidth="1.5" points={pts} />
+              {prezzi.map((p, i) => (
+                <circle key={i} cx={(i / (prezzi.length - 1)) * W} cy={H - ((p - min) / range) * (H - 4) - 2} r="2" fill={trend ? T.primary : '#dc2626'} />
+              ))}
             </svg>
-            <span className={`text-[10px] font-medium ${trend ? 'text-green-600' : 'text-red-500'}`}>
+            <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: T.textSec }}>
               {storici.length + 1} sett.
             </span>
           </div>
         );
       })()}
 
-      <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-gray-50">
-        <span className={`px-2 py-1 rounded-md text-xs font-bold ${badgeColor}`}>{offerta.insegna}</span>
+      {/* Badge footer */}
+      <div className="flex flex-wrap items-center gap-1.5 pt-2" style={{ borderTop: `1px solid ${T.border}` }}>
+        <span className={`px-2.5 py-0.5 rounded-lg text-[11px] font-bold tracking-wide ${getBadgeInsegna(offerta.insegna)}`}>
+          {offerta.insegna}
+        </span>
         {offerta.fidelity_req && (
-          <span className="flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-1 rounded-md text-xs font-medium border border-blue-100">
-            <Star size={12} className="fill-blue-700" /> Fedeltà
+          <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+            <Star size={10} className="fill-blue-700" strokeWidth={0} /> Carta
           </span>
         )}
         {isScadenzaOggi && (
-          <span className="flex items-center gap-1 bg-red-50 text-red-700 px-2 py-1 rounded-md text-xs font-medium border border-red-100">
-            <Clock size={12} /> Scade oggi
+          <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[11px] font-semibold border"
+            style={{ background: '#FFF5F0', color: T.accent, borderColor: '#F4C5A8' }}>
+            <Clock size={10} strokeWidth={1.5} /> Scade oggi
           </span>
         )}
         {isScadenzaDomani && (
-          <span className="flex items-center gap-1 bg-orange-50 text-orange-700 px-2 py-1 rounded-md text-xs font-medium border border-orange-100">
-            <Clock size={12} /> Scade domani
+          <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[11px] font-semibold border"
+            style={{ background: '#FFF8F0', color: '#C4682A', borderColor: '#F4D5B8' }}>
+            <Clock size={10} strokeWidth={1.5} /> Scade domani
           </span>
         )}
       </div>
@@ -208,103 +257,80 @@ const ProductCard = ({ offerta, storico = null, archivio = [] }) => {
   );
 };
 
-// ==========================================
-// 5. SCHERMATA ONBOARDING (prima del login)
-// ==========================================
-// Mostrata UNA SOLA VOLTA al primo accesso dopo il login Google.
-// Spiega in modo trasparente cosa fa l'app con i dati.
+// ─── Schermata Onboarding ─────────────────────────────────────────────────────
 
 const SchermataOnboarding = ({ onConferma }) => (
-  <div className="flex flex-col h-full bg-white px-6 py-10 overflow-y-auto pb-20">
+  <div className="flex flex-col h-full px-6 py-10 overflow-y-auto pb-20" style={{ background: T.bg }}>
     <div className="flex items-center justify-center mb-8">
-      <div className="w-16 h-16 bg-green-600 rounded-2xl flex items-center justify-center">
-        <ShoppingCart size={32} className="text-white" />
+      <div className="w-20 h-20 rounded-3xl flex items-center justify-center" style={{ background: T.primary }}>
+        <IconaLenticchia size={40} className="text-white" />
       </div>
     </div>
-
-    <h1 className="text-2xl font-bold text-gray-900 text-center mb-2">
-      Benvenuto in RomaRisparmia
+    <h1 className="text-center mb-2" style={{ fontFamily: "'Lora', serif", fontSize: '26px', fontWeight: 500, color: T.textPrimary }}>
+      Ciao, sono Lenticchia
     </h1>
-    <p className="text-gray-500 text-center text-sm mb-10">
-      Prima di iniziare, vogliamo essere trasparenti su come funziona.
+    <p className="text-center text-sm mb-10 leading-relaxed" style={{ color: T.textSec }}>
+      La spesa, senza sorprese. Due parole prima di iniziare.
     </p>
 
     <div className="space-y-6 mb-10">
-      <div className="flex gap-4">
-        <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center shrink-0">
-          <Receipt size={20} className="text-green-600" />
+      {[
+        { icon: <Receipt size={20} strokeWidth={1.5} style={{ color: T.primary }} />, bg: '#EEF2E4', titolo: 'Cosa raccogliamo', testo: 'Solo gli scontrini che carichi tu, volontariamente. Estraiamo prodotti e prezzi — mai codici fiscali o dati personali.' },
+        { icon: <Shield size={20} strokeWidth={1.5} className="text-blue-600" />, bg: '#EFF6FF', titolo: 'Chi li vede', testo: 'Solo tu. I confronti con altri utenti usano medie anonime — nessuno vede i tuoi scontrini, mai.' },
+        { icon: <TrendingDown size={20} strokeWidth={1.5} className="text-purple-600" />, bg: '#F5F3FF', titolo: 'Come li usiamo', testo: 'Per dirti dove conviene fare la spesa sulla base di quello che compri davvero tu.' },
+      ].map((item, i) => (
+        <div key={i} className="flex gap-4">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: item.bg }}>
+            {item.icon}
+          </div>
+          <div>
+            <h3 className="font-semibold mb-1 text-sm" style={{ color: T.textPrimary }}>{item.titolo}</h3>
+            <p className="text-sm leading-relaxed" style={{ color: T.textSec }}>{item.testo}</p>
+          </div>
         </div>
-        <div>
-          <h3 className="font-semibold text-gray-900 mb-1">Cosa raccogliamo</h3>
-          <p className="text-sm text-gray-500 leading-relaxed">
-            Solo gli scontrini che carichi tu, volontariamente. Estraiamo prodotti e prezzi — mai codici fiscali, nomi o dati personali dallo scontrino.
-          </p>
-        </div>
-      </div>
-
-      <div className="flex gap-4">
-        <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center shrink-0">
-          <Shield size={20} className="text-blue-600" />
-        </div>
-        <div>
-          <h3 className="font-semibold text-gray-900 mb-1">Chi li vede</h3>
-          <p className="text-sm text-gray-500 leading-relaxed">
-            Solo tu. I confronti con altri utenti usano medie anonime aggregate — nessuno vede i tuoi scontrini, mai.
-          </p>
-        </div>
-      </div>
-
-      <div className="flex gap-4">
-        <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center shrink-0">
-          <TrendingDown size={20} className="text-purple-600" />
-        </div>
-        <div>
-          <h3 className="font-semibold text-gray-900 mb-1">Come li usiamo</h3>
-          <p className="text-sm text-gray-500 leading-relaxed">
-            Per dirti dove conviene fare la spesa sulla base di cosa compri davvero tu — non consigli generici.
-          </p>
-        </div>
-      </div>
+      ))}
     </div>
 
-    <div className="bg-gray-50 rounded-xl p-4 mb-8">
-      <p className="text-xs text-gray-400 leading-relaxed text-center">
-        Puoi cancellare tutti i tuoi dati in qualsiasi momento da Profilo → Impostazioni → Cancella i miei dati. I dati sono conservati su server europei (GDPR).
+    <div className="rounded-2xl p-4 mb-8 text-center" style={{ background: T.surface, border: `1px solid ${T.border}` }}>
+      <p className="text-xs leading-relaxed" style={{ color: T.textSec }}>
+        Puoi cancellare i tuoi dati in qualsiasi momento da Profilo → Cancella i miei dati. Server europei (GDPR).
       </p>
     </div>
 
     <button
       onClick={onConferma}
-      className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-4 rounded-2xl transition-colors"
+      className="w-full text-white font-medium py-4 rounded-[20px] transition-all active:scale-95"
+      style={{ background: T.primary, boxShadow: `0 8px 20px rgba(100,113,68,0.25)`, fontFamily: "'DM Sans', sans-serif" }}
     >
       Ho capito, inizia
     </button>
   </div>
 );
 
-// ==========================================
-// 6. SCHERMATA LOGIN
-// ==========================================
+// ─── Schermata Login ──────────────────────────────────────────────────────────
 
 const SchermataLogin = () => {
   const { loginGoogle, erroreAuth } = useAuth();
-
   return (
-    <div className="flex flex-col h-full bg-white px-6 py-16 items-center justify-center">
-      <div className="w-20 h-20 bg-green-600 rounded-3xl flex items-center justify-center mb-6">
-        <ShoppingCart size={40} className="text-white" />
+    <div className="flex flex-col h-full px-6 py-16 items-center justify-center" style={{ background: T.bg }}>
+      <div className="w-24 h-24 rounded-3xl flex items-center justify-center mb-6 shadow-lg" style={{ background: T.primary }}>
+        <IconaLenticchia size={48} className="text-white" />
       </div>
-
-      <h1 className="text-3xl font-bold text-gray-900 mb-2 text-center">RomaRisparmia</h1>
-      <p className="text-gray-500 text-center text-sm mb-12 leading-relaxed max-w-xs">
-        Accedi per tenere traccia della tua spesa e scoprire dove risparmiare davvero.
+      <h1 className="text-center mb-2" style={{ fontFamily: "'Lora', serif", fontSize: '32px', fontWeight: 500, color: T.textPrimary }}>
+        Lenticchia
+      </h1>
+      <p className="text-center text-sm mb-3 font-medium tracking-wide" style={{ color: T.textSec }}>
+        La spesa, senza sorprese.
+      </p>
+      <p className="text-center text-sm mb-12 leading-relaxed max-w-xs" style={{ color: T.textSec }}>
+        Accedi per scoprire dove conviene fare la spesa questa settimana.
       </p>
 
       <button
         onClick={loginGoogle}
-        className="flex items-center gap-3 bg-white border-2 border-gray-200 hover:border-gray-300 text-gray-700 font-medium py-3.5 px-6 rounded-2xl transition-all w-full max-w-xs justify-center shadow-sm hover:shadow-md active:scale-95"
+        className="flex items-center gap-3 font-medium py-3.5 px-6 rounded-[20px] transition-all w-full max-w-xs justify-center active:scale-95"
+        style={{ background: T.surface, border: `1.5px solid ${T.border}`, color: T.textPrimary, boxShadow: '0 4px 16px rgba(44,48,38,0.08)', fontFamily: "'DM Sans', sans-serif" }}
       >
-        {/* SVG Google logo */}
         <svg width="20" height="20" viewBox="0 0 48 48">
           <path fill="#FFC107" d="M43.6 20H24v8h11.3C33.7 33.1 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 20-8.9 20-20 0-1.3-.1-2.7-.4-4z"/>
           <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 16 19 13 24 13c3 0 5.8 1.1 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.4 6.3 14.7z"/>
@@ -314,125 +340,110 @@ const SchermataLogin = () => {
         Continua con Google
       </button>
 
-      {erroreAuth && (
-        <p className="mt-4 text-sm text-red-600 text-center">{erroreAuth}</p>
-      )}
+      {erroreAuth && <p className="mt-4 text-sm text-red-600 text-center">{erroreAuth}</p>}
 
-      <p className="mt-10 text-xs text-gray-400 text-center max-w-xs leading-relaxed">
-        Continuando accetti che i tuoi scontrini vengano usati in forma anonima per migliorare i suggerimenti per tutti gli utenti.
+      <p className="mt-10 text-xs text-center max-w-xs leading-relaxed" style={{ color: T.textSec }}>
+        Continuando accetti che i tuoi scontrini vengano usati in forma anonima per migliorare i suggerimenti.
       </p>
     </div>
   );
 };
 
-// ==========================================
-// 7. TAB PROFILO (nuovo)
-// ==========================================
+// ─── Tab Profilo ──────────────────────────────────────────────────────────────
 
 const TabProfilo = () => {
-  const { utente, profilo, logout, isLoggedIn, loginGoogle } = useAuth();
-
-  if (!isLoggedIn) {
-    return <SchermataLogin />;
-  }
+  const { utente, profilo, logout, isLoggedIn } = useAuth();
+  if (!isLoggedIn) return <SchermataLogin />;
 
   const livello = getLivello(profilo?.punti || 0);
   const prossimoLivello = getProssimoLivello(profilo?.punti || 0);
   const puntiAttuali = profilo?.punti || 0;
   const puntiProssimo = prossimoLivello?.min || puntiAttuali;
-  const progressoPerc = prossimoLivello
-    ? Math.round(((puntiAttuali - (LIVELLI[LIVELLI.indexOf(getLivello(puntiAttuali))]?.min || 0)) /
-        (puntiProssimo - (LIVELLI[LIVELLI.indexOf(getLivello(puntiAttuali))]?.min || 0))) * 100)
-    : 100;
+  const livelloIdx = LIVELLI.indexOf(getLivello(puntiAttuali));
+  const puntiBase = LIVELLI[livelloIdx]?.min || 0;
+  const progressoPerc = prossimoLivello ? Math.round(((puntiAttuali - puntiBase) / (puntiProssimo - puntiBase)) * 100) : 100;
 
   return (
-    <div className="flex flex-col h-full bg-gray-50 pb-24 overflow-y-auto">
-      {/* Header profilo */}
-      <div className="bg-white px-4 py-6 border-b border-gray-100">
+    <div className="flex flex-col h-full pb-32 overflow-y-auto" style={{ background: T.bg }}>
+      {/* Header */}
+      <div className="px-5 pt-8 pb-6" style={{ background: T.surface, borderBottom: `1px solid ${T.border}` }}>
         <div className="flex items-center gap-4">
-          {utente.photoURL ? (
-            <img src={utente.photoURL} alt="avatar" className="w-16 h-16 rounded-full border-2 border-green-200" />
-          ) : (
-            <div className="w-16 h-16 rounded-full bg-green-600 flex items-center justify-center text-white text-2xl font-bold">
-              {utente.displayName?.[0] || utente.email?.[0]?.toUpperCase() || '?'}
-            </div>
-          )}
+          {utente.photoURL
+            ? <img src={utente.photoURL} alt="avatar" className="w-16 h-16 rounded-full" style={{ border: `2px solid ${T.border}` }} />
+            : <div className="w-16 h-16 rounded-full flex items-center justify-center text-white text-2xl font-bold" style={{ background: T.primary }}>
+                {utente.displayName?.[0] || utente.email?.[0]?.toUpperCase() || '?'}
+              </div>
+          }
           <div>
-            <h2 className="text-lg font-bold text-gray-900">{utente.displayName || 'Utente'}</h2>
-            <p className="text-sm text-gray-500">{utente.email}</p>
-            <span className={`mt-1 inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${livello.colore}`}>
+            <h2 className="font-semibold" style={{ color: T.textPrimary, fontFamily: "'Lora', serif", fontSize: '18px' }}>
+              {utente.displayName || 'Utente'}
+            </h2>
+            <p className="text-sm" style={{ color: T.textSec }}>{utente.email}</p>
+            <span className={`mt-1.5 inline-block text-xs font-semibold px-2.5 py-0.5 rounded-full ${livello.colore}`}>
               {livello.nome}
             </span>
           </div>
         </div>
       </div>
 
-      <div className="px-4 py-4 space-y-4">
-        {/* Card punti e progressione */}
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-          <div className="flex justify-between items-center mb-3">
-            <span className="text-sm font-semibold text-gray-700">I tuoi punti</span>
-            <span className="text-2xl font-bold text-green-600">{puntiAttuali}</span>
+      <div className="px-4 py-4 space-y-3">
+        {/* Card punti */}
+        <div className="rounded-[20px] p-5" style={{ background: T.surface, border: `1px solid ${T.border}`, boxShadow: '0 4px 24px rgba(44,48,38,0.05)' }}>
+          <div className="flex justify-between items-center mb-4">
+            <span className="text-sm font-medium" style={{ color: T.textSec }}>I tuoi punti</span>
+            <span className="text-3xl font-medium" style={{ color: T.primary, fontFamily: "'Lora', serif" }}>{puntiAttuali}</span>
           </div>
           {prossimoLivello && (
             <>
-              <div className="flex justify-between text-xs text-gray-400 mb-1.5">
+              <div className="flex justify-between text-xs mb-2" style={{ color: T.textSec }}>
                 <span>{livello.nome}</span>
-                <span>{prossimoLivello.nome} ({puntiProssimo} pt)</span>
+                <span>{prossimoLivello.nome} · {puntiProssimo} pt</span>
               </div>
-              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-green-500 rounded-full transition-all"
-                  style={{ width: `${progressoPerc}%` }}
-                />
+              <div className="h-1.5 rounded-full overflow-hidden" style={{ background: T.border }}>
+                <div className="h-full rounded-full transition-all" style={{ width: `${progressoPerc}%`, background: T.primary }} />
               </div>
-              <p className="text-xs text-gray-400 mt-2 text-center">
+              <p className="text-xs mt-2 text-center" style={{ color: T.textSec }}>
                 {puntiProssimo - puntiAttuali} punti al prossimo livello
               </p>
             </>
           )}
-          {!prossimoLivello && (
-            <p className="text-xs text-gray-400 text-center">Hai raggiunto il livello massimo!</p>
-          )}
         </div>
 
-        {/* Come guadagnare punti */}
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">Come guadagnare punti</h3>
-          <div className="space-y-2">
+        {/* Come guadagnare */}
+        <div className="rounded-[20px] p-5" style={{ background: T.surface, border: `1px solid ${T.border}`, boxShadow: '0 4px 24px rgba(44,48,38,0.05)' }}>
+          <h3 className="text-xs font-medium uppercase tracking-wider mb-4" style={{ color: T.textSec }}>Come guadagnare punti</h3>
+          <div className="space-y-3">
             {[
               { azione: 'Scontrino caricato e verificato', punti: '+15' },
               { azione: 'Scontrino con più di 10 prodotti', punti: '+5' },
               { azione: 'Insegna poco coperta (CTS, Elite...)', punti: '+10' },
               { azione: 'Primo scontrino della settimana', punti: '+5' },
             ].map((item, i) => (
-              <div key={i} className="flex justify-between items-center text-sm">
-                <span className="text-gray-600">{item.azione}</span>
-                <span className="font-semibold text-green-600 shrink-0 ml-2">{item.punti}</span>
+              <div key={i} className="flex justify-between items-center">
+                <span className="text-sm" style={{ color: T.textPrimary }}>{item.azione}</span>
+                <span className="text-sm font-semibold ml-3 shrink-0" style={{ color: T.primary }}>{item.punti}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Sblocchi per livello */}
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">Sblocchi per livello</h3>
-          <div className="space-y-2">
+        {/* Sblocchi */}
+        <div className="rounded-[20px] p-5" style={{ background: T.surface, border: `1px solid ${T.border}`, boxShadow: '0 4px 24px rgba(44,48,38,0.05)' }}>
+          <h3 className="text-xs font-medium uppercase tracking-wider mb-4" style={{ color: T.textSec }}>Livelli e sblocchi</h3>
+          <div className="space-y-3">
             {LIVELLI.map((l) => {
               const sbloccato = puntiAttuali >= l.min;
               return (
-                <div key={l.nome} className={`flex items-center gap-3 ${sbloccato ? '' : 'opacity-40'}`}>
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${l.colore}`}>
-                    {l.nome}
-                  </span>
-                  <span className="text-xs text-gray-500">
+                <div key={l.nome} className={`flex items-center gap-3 ${sbloccato ? '' : 'opacity-35'}`}>
+                  <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full shrink-0 ${l.colore}`}>{l.nome}</span>
+                  <span className="text-xs" style={{ color: T.textSec }}>
                     {l.min === 0 && 'Accesso base'}
                     {l.min === 50 && 'Storico spesa 6 mesi'}
-                    {l.min === 150 && 'Notifiche offerte sui prodotti tuoi'}
+                    {l.min === 150 && 'Notifiche offerte sui tuoi prodotti'}
                     {l.min === 400 && 'Offerte 24h in anticipo'}
                     {l.min === 1000 && 'Insights predittivi + badge speciale'}
                   </span>
-                  {sbloccato && <span className="ml-auto text-green-500 text-xs">✓</span>}
+                  {sbloccato && <span className="ml-auto text-xs" style={{ color: T.primary }}>✓</span>}
                 </div>
               );
             })}
@@ -440,41 +451,34 @@ const TabProfilo = () => {
         </div>
 
         {/* Piano */}
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+        <div className="rounded-[20px] p-5" style={{ background: T.surface, border: `1px solid ${T.border}`, boxShadow: '0 4px 24px rgba(44,48,38,0.05)' }}>
           <div className="flex justify-between items-center">
             <div>
-              <h3 className="text-sm font-semibold text-gray-700">Piano attuale</h3>
-              <p className="text-xs text-gray-400 mt-0.5">
-                {profilo?.piano === 'premium' ? 'Piano Premium attivo' : 'Piano gratuito'}
+              <h3 className="text-sm font-medium" style={{ color: T.textPrimary }}>Piano attuale</h3>
+              <p className="text-xs mt-0.5" style={{ color: T.textSec }}>
+                {profilo?.piano === 'premium' ? 'Premium attivo' : 'Gratuito'}
               </p>
             </div>
-            <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${
-              profilo?.piano === 'premium'
-                ? 'bg-amber-100 text-amber-700'
-                : 'bg-gray-100 text-gray-600'
-            }`}>
+            <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${profilo?.piano === 'premium' ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-stone-100 text-stone-600'}`}>
               {profilo?.piano === 'premium' ? 'PREMIUM' : 'FREE'}
             </span>
           </div>
         </div>
 
         {/* Azioni */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <button
-            onClick={logout}
-            className="w-full flex items-center gap-3 px-4 py-4 text-red-600 hover:bg-red-50 transition-colors border-b border-gray-50"
-          >
-            <LogOut size={18} />
-            <span className="text-sm font-medium">Esci dall'account</span>
-            <ChevronRight size={16} className="ml-auto text-gray-300" />
+        <div className="rounded-[20px] overflow-hidden" style={{ background: T.surface, border: `1px solid ${T.border}` }}>
+          <button onClick={logout} className="w-full flex items-center gap-3 px-5 py-4 transition-colors hover:bg-red-50 active:scale-[0.99]"
+            style={{ borderBottom: `1px solid ${T.border}` }}>
+            <LogOut size={17} strokeWidth={1.5} className="text-red-500" />
+            <span className="text-sm" style={{ color: '#DC2626' }}>Esci dall'account</span>
+            <ChevronRight size={15} className="ml-auto text-gray-300" />
           </button>
-          <button
-            className="w-full flex items-center gap-3 px-4 py-4 text-gray-500 hover:bg-gray-50 transition-colors"
-            onClick={() => alert('Funzione in arrivo nel prossimo sprint.')}
-          >
-            <X size={18} />
-            <span className="text-sm font-medium">Cancella i miei dati</span>
-            <ChevronRight size={16} className="ml-auto text-gray-300" />
+          <button onClick={() => alert('In arrivo nel prossimo sprint.')}
+            className="w-full flex items-center gap-3 px-5 py-4 transition-colors active:scale-[0.99]"
+            style={{ color: T.textSec }}>
+            <X size={17} strokeWidth={1.5} />
+            <span className="text-sm">Cancella i miei dati</span>
+            <ChevronRight size={15} className="ml-auto text-gray-300" />
           </button>
         </div>
       </div>
@@ -482,9 +486,7 @@ const TabProfilo = () => {
   );
 };
 
-// ==========================================
-// 8. TAB OFFERTE (invariato)
-// ==========================================
+// ─── Tab Offerte ──────────────────────────────────────────────────────────────
 
 const ORDINAMENTI = [
   { id: 'prezzo_asc', label: 'Prezzo ↑' },
@@ -506,63 +508,63 @@ const TabOfferte = ({ offerte, archivio = [] }) => {
     let result = offerte;
     if (soloAttivi) result = result.filter(o => o.valido_fino === oggi);
     if (activeCategory !== 'tutte') result = result.filter(o => o.categoria === activeCategory);
-
     const seen = new Map();
     result.forEach(o => {
       const key = `${(o.nome||'').toLowerCase()}_${(o.marca||'').toLowerCase()}_${o.insegna}_${o.grammatura||''}`;
       if (!seen.has(key) || seen.get(key).prezzo > o.prezzo) seen.set(key, o);
     });
     result = [...seen.values()];
-
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      result = result.filter(o =>
-        (o.nome && o.nome.toLowerCase().includes(q)) ||
-        (o.marca && o.marca.toLowerCase().includes(q)) ||
-        (o.insegna && o.insegna.toLowerCase().includes(q))
-      );
+      const q = searchQuery.toLowerCase();
+      result = result.filter(o => (o.nome||'').toLowerCase().includes(q) || (o.marca||'').toLowerCase().includes(q) || (o.insegna||'').toLowerCase().includes(q));
     }
-
     return [...result].sort((a, b) => {
       if (ordinamento === 'prezzo_asc') return a.prezzo - b.prezzo;
       if (ordinamento === 'prezzo_desc') return b.prezzo - a.prezzo;
-      if (ordinamento === 'prezzo_kg') return (a.prezzo_kg || 999) - (b.prezzo_kg || 999);
-      if (ordinamento === 'scadenza') return (a.valido_fino || '').localeCompare(b.valido_fino || '');
-      if (ordinamento === 'insegna') return (a.insegna || '').localeCompare(b.insegna || '');
+      if (ordinamento === 'prezzo_kg') return (a.prezzo_kg||999) - (b.prezzo_kg||999);
+      if (ordinamento === 'scadenza') return (a.valido_fino||'').localeCompare(b.valido_fino||'');
+      if (ordinamento === 'insegna') return (a.insegna||'').localeCompare(b.insegna||'');
       return 0;
     });
   }, [offerte, searchQuery, activeCategory, soloAttivi, ordinamento, oggi]);
 
   return (
-    <div className="flex flex-col h-full bg-gray-50 pb-20">
-      <div className="sticky top-0 bg-white shadow-sm z-10 px-4 py-3 pb-0">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <ShoppingCart className="text-green-600" size={24} />
-            <h1 className="text-xl font-bold text-gray-900 tracking-tight">RomaRisparmia</h1>
+    <div className="flex flex-col h-full pb-28" style={{ background: T.bg }}>
+      {/* Header sticky traslucido */}
+      <div className="sticky top-0 z-10 px-5 pt-6 pb-0" style={{ background: 'rgba(249,248,244,0.85)', backdropFilter: 'blur(12px)' }}>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2.5">
+            <IconaLenticchia size={22} style={{ color: T.primary }} />
+            <h1 style={{ fontFamily: "'Lora', serif", fontSize: '20px', fontWeight: 500, color: T.textPrimary }}>
+              Lenticchia
+            </h1>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setSoloAttivi(v => !v)}
-              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border transition-colors ${soloAttivi ? 'bg-red-50 text-red-700 border-red-200' : 'bg-gray-50 text-gray-500 border-gray-200'}`}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all"
+              style={soloAttivi
+                ? { background: '#FFF0E8', color: T.accent, border: `1px solid #F4C5A8` }
+                : { background: T.surface, color: T.textSec, border: `1px solid ${T.border}` }
+              }
             >
-              <Clock size={12} /> Scade oggi
+              <Clock size={11} strokeWidth={1.5} /> Scade oggi
             </button>
             <div className="relative">
               <button
                 onClick={() => setShowOrdinamento(v => !v)}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border bg-gray-50 text-gray-500 border-gray-200"
+                className="p-1.5 rounded-full transition-all"
+                style={{ background: T.surface, border: `1px solid ${T.border}`, color: T.textSec }}
               >
-                <SlidersHorizontal size={12} />
+                <SlidersHorizontal size={14} strokeWidth={1.5} />
               </button>
               {showOrdinamento && (
-                <div className="absolute right-0 top-8 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden w-36">
+                <div className="absolute right-0 top-9 rounded-2xl overflow-hidden z-50 w-36"
+                  style={{ background: T.surface, border: `1px solid ${T.border}`, boxShadow: '0 8px 30px rgba(44,48,38,0.12)' }}>
                   {ORDINAMENTI.map(o => (
-                    <button
-                      key={o.id}
-                      onClick={() => { setOrdinamento(o.id); setShowOrdinamento(false); }}
-                      className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${ordinamento === o.id ? 'text-green-600 font-semibold' : 'text-gray-700'}`}
-                    >
+                    <button key={o.id} onClick={() => { setOrdinamento(o.id); setShowOrdinamento(false); }}
+                      className="w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-stone-50"
+                      style={{ color: ordinamento === o.id ? T.primary : T.textPrimary, fontWeight: ordinamento === o.id ? 600 : 400 }}>
                       {o.label}
                     </button>
                   ))}
@@ -572,84 +574,77 @@ const TabOfferte = ({ offerte, archivio = [] }) => {
           </div>
         </div>
 
-        <div className="relative mb-3">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search size={18} className="text-gray-400" />
-          </div>
+        {/* Search */}
+        <div className="relative mb-4">
+          <Search size={16} strokeWidth={1.5} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: T.textSec }} />
           <input
             type="text"
-            className="block w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl leading-5 bg-gray-50 placeholder-gray-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors sm:text-sm"
+            className="w-full pl-10 pr-4 py-3 rounded-2xl text-sm outline-none transition-all"
+            style={{ background: T.surface, border: `1px solid ${T.border}`, color: T.textPrimary, fontFamily: "'DM Sans', sans-serif" }}
             placeholder="Cerca pasta, latte, carne..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
 
-        <div className="flex overflow-x-auto hide-scrollbar pb-3 -mx-4 px-4 space-x-2">
+        {/* Categorie */}
+        <div className="flex overflow-x-auto hide-scrollbar pb-4 -mx-5 px-5 gap-2">
           {CATEGORIE.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => setActiveCategory(cat.id)}
-              className={`whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${activeCategory === cat.id ? 'bg-green-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}
-            >
+            <button key={cat.id} onClick={() => setActiveCategory(cat.id)}
+              className="whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-medium transition-all shrink-0"
+              style={activeCategory === cat.id
+                ? { background: T.primary, color: '#fff', fontFamily: "'DM Sans', sans-serif" }
+                : { background: T.surface, color: T.textSec, border: `1px solid ${T.border}`, fontFamily: "'DM Sans', sans-serif" }
+              }>
               {cat.label}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="p-4 overflow-y-auto">
-        <div className="mb-2 text-sm text-gray-500 flex justify-between items-center">
-          <span>{filteredOfferte.length} offerte trovate</span>
-          <span className="text-xs">{ORDINAMENTI.find(o => o.id === ordinamento)?.label}</span>
-        </div>
-        {filteredOfferte.length > 0 ? (
-          filteredOfferte.map(offerta => {
-            const storicoMatch = archivio
-              .filter(a => a.insegna === offerta.insegna && a.nome?.toLowerCase() === offerta.nome?.toLowerCase())
-              .sort((a, b) => (b.valido_fino || '').localeCompare(a.valido_fino || ''))[0] || null;
-            return <ProductCard key={offerta.id} offerta={offerta} storico={storicoMatch} archivio={archivio} />;
-          })
-        ) : (
-          <div className="text-center py-10">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
-              <Search size={24} className="text-gray-400" />
+      {/* Lista */}
+      <div className="px-4 pt-2 overflow-y-auto flex-1">
+        <p className="text-xs mb-3 uppercase tracking-wider font-medium" style={{ color: T.textSec }}>
+          {filteredOfferte.length} offerte trovate
+        </p>
+        {filteredOfferte.length > 0
+          ? filteredOfferte.map((offerta, i) => {
+              const storicoMatch = archivio.filter(a => a.insegna === offerta.insegna && a.nome?.toLowerCase() === offerta.nome?.toLowerCase()).sort((a, b) => (b.valido_fino||'').localeCompare(a.valido_fino||''))[0] || null;
+              return <ProductCard key={offerta.id} offerta={offerta} storico={storicoMatch} archivio={archivio} index={i} />;
+            })
+          : (
+            <div className="text-center py-16">
+              <Search size={32} strokeWidth={1} className="mx-auto mb-4" style={{ color: T.textSec }} />
+              <p className="font-medium" style={{ color: T.textPrimary }}>Nessuna offerta trovata</p>
+              <p className="text-sm mt-1" style={{ color: T.textSec }}>Prova un altro prodotto o categoria.</p>
             </div>
-            <h3 className="text-lg font-medium text-gray-900">Nessuna offerta trovata</h3>
-            <p className="mt-1 text-sm text-gray-500">Prova a cercare un altro prodotto o cambia categoria.</p>
-          </div>
-        )}
+          )
+        }
       </div>
     </div>
   );
 };
 
-// ==========================================
-// 9. TAB LISTA SPESA (invariata)
-// ==========================================
+// ─── Tab Lista Spesa ──────────────────────────────────────────────────────────
 
 const TabListaSpesa = ({ offerte, archivio = [] }) => {
   const [listaText, setListaText] = useState(() => {
-    try { return localStorage.getItem('romaRisparmia_lista') || "pane\nfusilli\nlatte parzialmente scremato\nfiletto di maiale"; }
-    catch { return "pane\nfusilli\nlatte parzialmente scremato\nfiletto di maiale"; }
+    try { return localStorage.getItem('lenticchia_lista') || "pane\nfusilli\nlatte parzialmente scremato\nfiletto di maiale"; } catch { return "pane\nfusilli\nlatte parzialmente scremato\nfiletto di maiale"; }
   });
   const [risultato, setRisultato] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showStorico, setShowStorico] = useState(false);
   const [storicoListe, setStoricoListe] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('romaRisparmia_storico') || '[]'); }
-    catch { return []; }
+    try { return JSON.parse(localStorage.getItem('lenticchia_storico') || '[]'); } catch { return []; }
   });
 
-  useEffect(() => {
-    try { localStorage.setItem('romaRisparmia_lista', listaText); } catch {}
-  }, [listaText]);
+  useEffect(() => { try { localStorage.setItem('lenticchia_lista', listaText); } catch {} }, [listaText]);
 
   const salvaInStorico = (lista, vincitore, totale) => {
     const nuova = { data: new Date().toLocaleDateString('it-IT'), lista, vincitore, totale: totale.toFixed(2) };
     const aggiornato = [nuova, ...storicoListe].slice(0, 10);
     setStoricoListe(aggiornato);
-    try { localStorage.setItem('romaRisparmia_storico', JSON.stringify(aggiornato)); } catch {}
+    try { localStorage.setItem('lenticchia_storico', JSON.stringify(aggiornato)); } catch {}
   };
 
   const analizzaSpesa = () => {
@@ -657,16 +652,14 @@ const TabListaSpesa = ({ offerte, archivio = [] }) => {
     setTimeout(() => {
       const items = listaText.split('\n').map(i => i.trim().replace(/\s+/g, ' ').replace(/[^\w\sàèéìòù'.-]/gi, '')).filter(i => i.length > 2);
       if (!items.length) { setRisultato(null); setIsAnalyzing(false); return; }
-
       const insegne = [...new Set(offerte.map(o => o.insegna))];
-      const offerteOtt = offerte.map(o => ({ ...o, searchNome: (o.nome||'').toLowerCase(), searchMarca: (o.marca||'').toLowerCase(), searchCategoria: (o.categoria||'').toLowerCase() }));
-
+      const offerteOtt = offerte.map(o => ({ ...o, sN: (o.nome||'').toLowerCase(), sM: (o.marca||'').toLowerCase(), sC: (o.categoria||'').toLowerCase() }));
       const storeResults = insegne.map(insegna => {
         const storeOffers = offerteOtt.filter(o => o.insegna === insegna);
         let trovati = [], nonTrovati = [], totalePrezzo = 0;
         items.forEach(itemStr => {
           const parole = itemStr.toLowerCase().split(' ').filter(p => p.length > 1);
-          const goodMatches = storeOffers.filter(o => parole.every(p => o.searchNome.includes(p) || o.searchMarca.includes(p) || o.searchCategoria.includes(p)));
+          const goodMatches = storeOffers.filter(o => parole.every(p => o.sN.includes(p) || o.sM.includes(p) || o.sC.includes(p)));
           if (goodMatches.length > 0) {
             goodMatches.sort((a, b) => a.prezzo - b.prezzo);
             const best = goodMatches[0];
@@ -677,9 +670,7 @@ const TabListaSpesa = ({ offerte, archivio = [] }) => {
         const extraOfferte = storeOffers.filter(o => !idsTrovati.includes(o.id)).sort((a, b) => a.prezzo - b.prezzo).slice(0, 3);
         return { insegna, trovati, nonTrovati, totalePrezzo, extraOfferte, punteggio: trovati.length };
       });
-
       storeResults.sort((a, b) => b.punteggio !== a.punteggio ? b.punteggio - a.punteggio : a.totalePrezzo - b.totalePrezzo);
-
       if (storeResults.length > 0 && storeResults[0].punteggio > 0) {
         const vincitore = storeResults[0];
         setRisultato({ vincitore, alternative: storeResults.slice(1).filter(r => r.punteggio > 0).slice(0, 3) });
@@ -692,51 +683,66 @@ const TabListaSpesa = ({ offerte, archivio = [] }) => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-gray-50 pb-20">
-      <div className="bg-green-600 px-4 py-6 shadow-md text-white rounded-b-3xl">
-        <h2 className="text-2xl font-bold mb-1">Verdetto Spesa</h2>
-        <p className="text-green-100 text-sm">Trova il supermercato più conveniente per la tua lista.</p>
+    <div className="flex flex-col h-full pb-28 overflow-y-auto" style={{ background: T.bg }}>
+      {/* Header */}
+      <div className="px-5 pt-8 pb-6" style={{ background: T.primary }}>
+        <h2 style={{ fontFamily: "'Lora', serif", fontSize: '26px', fontWeight: 500, color: '#fff', marginBottom: '4px' }}>
+          Verdetto Spesa
+        </h2>
+        <p className="text-sm" style={{ color: 'rgba(255,255,255,0.75)' }}>Dove conviene fare la spesa questa settimana.</p>
       </div>
 
-      <div className="px-4 -mt-4 relative z-10 flex-1 overflow-y-auto">
-        <div className="bg-white rounded-2xl shadow-lg p-4 mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Cosa ti serve? (una voce per riga)</label>
+      <div className="px-4 -mt-4 relative z-10">
+        {/* Card input */}
+        <div className="rounded-[20px] p-5 mb-4" style={{ background: T.surface, boxShadow: '0 8px 30px rgba(44,48,38,0.1)', border: `1px solid ${T.border}` }}>
+          <label className="block text-xs uppercase tracking-wider font-medium mb-3" style={{ color: T.textSec }}>
+            Cosa ti serve? (una voce per riga)
+          </label>
           <textarea
-            className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-gray-50"
-            rows="6"
+            className="w-full p-4 rounded-2xl text-sm resize-none outline-none transition-all"
+            style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.textPrimary, fontFamily: "'DM Sans', sans-serif", minHeight: '140px' }}
             value={listaText}
             onChange={(e) => setListaText(e.target.value)}
-            placeholder={"es.\npane\nlatte\nuova"}
+            placeholder={"pane\nlatte\nuova\n..."}
           />
-          <div className="flex gap-2 mt-3">
+          <div className="flex gap-2 mt-4">
             <button
               onClick={analizzaSpesa}
               disabled={isAnalyzing || !listaText.trim()}
-              className="flex-1 bg-gray-900 hover:bg-black text-white font-semibold py-3 px-4 rounded-xl transition-all disabled:opacity-50 flex justify-center items-center gap-2"
+              className="flex-1 text-white font-medium py-3.5 px-4 rounded-[20px] transition-all disabled:opacity-50 flex justify-center items-center gap-2 active:scale-[0.98]"
+              style={{ background: T.textPrimary, fontFamily: "'DM Sans', sans-serif", boxShadow: `0 8px 20px rgba(44,48,38,0.2)` }}
             >
-              {isAnalyzing ? <span className="animate-pulse">Ricerca in corso...</span> : <><Search size={18} /> Trova il migliore</>}
+              {isAnalyzing ? <span className="animate-pulse">Cerco...</span> : <><Search size={16} strokeWidth={1.5} /> Trova il migliore</>}
             </button>
             {storicoListe.length > 0 && (
-              <button onClick={() => setShowStorico(v => !v)} className={`px-3 py-3 rounded-xl border transition-colors ${showStorico ? 'bg-green-50 border-green-200 text-green-700' : 'bg-gray-50 border-gray-200 text-gray-500'}`}>
-                <History size={18} />
+              <button onClick={() => setShowStorico(v => !v)}
+                className="px-3.5 py-3 rounded-[20px] border transition-all"
+                style={showStorico ? { background: '#EEF2E4', borderColor: '#C8D9A0', color: T.primary } : { background: T.surface, borderColor: T.border, color: T.textSec }}>
+                <History size={18} strokeWidth={1.5} />
               </button>
             )}
           </div>
         </div>
 
+        {/* Storico */}
         {showStorico && storicoListe.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-4">
-            <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2"><History size={16} className="text-gray-500" /> Ultime liste</h3>
+          <div className="rounded-[20px] p-4 mb-4" style={{ background: T.surface, border: `1px solid ${T.border}` }}>
+            <h3 className="text-xs uppercase tracking-wider font-medium mb-3 flex items-center gap-2" style={{ color: T.textSec }}>
+              <History size={13} strokeWidth={1.5} /> Ultime liste
+            </h3>
             <div className="space-y-2">
               {storicoListe.map((voce, idx) => (
-                <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => { setListaText(voce.lista.join('\n')); setShowStorico(false); }}>
+                <div key={idx} className="flex items-center justify-between p-3 rounded-xl cursor-pointer active:scale-[0.99] transition-all"
+                  style={{ background: T.bg }} onClick={() => { setListaText(voce.lista.join('\n')); setShowStorico(false); }}>
                   <div>
-                    <div className="text-xs text-gray-400">{voce.data}</div>
-                    <div className="text-sm font-medium text-gray-800 mt-0.5">{voce.lista.slice(0, 3).join(', ')}{voce.lista.length > 3 ? '...' : ''}</div>
+                    <div className="text-xs mb-0.5" style={{ color: T.textSec }}>{voce.data}</div>
+                    <div className="text-sm font-medium" style={{ color: T.textPrimary }}>
+                      {voce.lista.slice(0, 3).join(', ')}{voce.lista.length > 3 ? '...' : ''}
+                    </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-xs font-bold text-green-700">{voce.vincitore}</div>
-                    <div className="text-xs text-gray-500">€{voce.totale}</div>
+                    <div className="text-xs font-bold" style={{ color: T.primary }}>{voce.vincitore}</div>
+                    <div className="text-xs" style={{ color: T.textSec }}>€{voce.totale}</div>
                   </div>
                 </div>
               ))}
@@ -744,34 +750,53 @@ const TabListaSpesa = ({ offerte, archivio = [] }) => {
           </div>
         )}
 
+        {/* Risultato */}
         {risultato && (
           <div className="animate-fade-in-up">
             {risultato.vincitore?.trovati.length > 0 ? (
               <>
-                <div className="bg-white border-2 border-green-500 rounded-2xl shadow-lg p-5 mb-6 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">MIGLIOR SCELTA</div>
-                  <h3 className="text-gray-500 text-sm font-medium mb-1">Conviene andare da</h3>
-                  <span className={`px-3 py-1.5 rounded-lg text-lg font-bold shadow-sm ${getColorInsegna(risultato.vincitore.insegna)}`}>{risultato.vincitore.insegna}</span>
-                  <p className="text-gray-800 text-base my-4"><strong>{risultato.vincitore.trovati.length}</strong> prodotti della tua lista sono in offerta!</p>
-                  <div className="bg-green-50 rounded-xl p-3 flex justify-between items-center border border-green-100">
-                    <span className="text-green-800 font-medium">Totale offerte trovate:</span>
-                    <span className="text-2xl font-black text-green-700">{formattaPrezzo(risultato.vincitore.totalePrezzo)}</span>
+                {/* Verdetto vincitore — effetto molla via CSS */}
+                <div className="rounded-[24px] p-6 mb-4 relative overflow-hidden animate-spring"
+                  style={{ background: T.primary, boxShadow: `0 12px 40px rgba(100,113,68,0.3)` }}>
+                  <div className="absolute top-0 right-0 px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-bl-2xl"
+                    style={{ background: 'rgba(255,255,255,0.2)', color: '#fff' }}>
+                    Miglior scelta
+                  </div>
+                  <p className="text-xs uppercase tracking-wider mb-2" style={{ color: 'rgba(255,255,255,0.7)' }}>Conviene andare da</p>
+                  <h2 style={{ fontFamily: "'Lora', serif", fontSize: '28px', fontWeight: 500, color: '#fff', marginBottom: '12px' }}>
+                    {risultato.vincitore.insegna}
+                  </h2>
+                  <p className="text-sm mb-4" style={{ color: 'rgba(255,255,255,0.85)' }}>
+                    <strong style={{ color: '#fff' }}>{risultato.vincitore.trovati.length}</strong> prodotti della tua lista sono in offerta questa settimana.
+                  </p>
+                  <div className="rounded-2xl p-3 flex justify-between items-center" style={{ background: 'rgba(255,255,255,0.15)' }}>
+                    <span className="text-sm" style={{ color: 'rgba(255,255,255,0.85)' }}>Totale offerte trovate</span>
+                    <span style={{ fontFamily: "'Lora', serif", fontSize: '24px', fontWeight: 500, color: '#fff' }}>
+                      {formattaPrezzo(risultato.vincitore.totalePrezzo)}
+                    </span>
                   </div>
                 </div>
+
+                {/* Alternative */}
                 {risultato.alternative.length > 0 && (
-                  <div className="mb-6">
-                    <h4 className="font-bold text-gray-900 mb-3 text-sm flex items-center gap-2"><Store size={18} className="text-gray-500" /> Confronto con altri</h4>
+                  <div className="mb-4">
+                    <h4 className="text-xs uppercase tracking-wider font-medium mb-3 flex items-center gap-2" style={{ color: T.textSec }}>
+                      <Store size={13} strokeWidth={1.5} /> Confronto con altri
+                    </h4>
                     <div className="space-y-2">
                       {risultato.alternative.map((alt, idx) => (
-                        <div key={idx} className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm flex justify-between items-center">
+                        <div key={idx} className="flex justify-between items-center p-4 rounded-2xl"
+                          style={{ background: T.surface, border: `1px solid ${T.border}` }}>
                           <div>
-                            <span className="font-bold text-gray-800 text-sm">{alt.insegna}</span>
-                            <span className="text-gray-500 text-xs ml-1 block sm:inline">({alt.punteggio} trovati)</span>
+                            <span className="font-medium text-sm" style={{ color: T.textPrimary }}>{alt.insegna}</span>
+                            <span className="text-xs ml-2" style={{ color: T.textSec }}>({alt.punteggio} trovati)</span>
                           </div>
                           <div className="text-right">
-                            <span className="font-medium text-gray-900 text-sm">{formattaPrezzo(alt.totalePrezzo)}</span>
+                            <span className="text-sm font-medium" style={{ color: T.textPrimary }}>{formattaPrezzo(alt.totalePrezzo)}</span>
                             {alt.punteggio === risultato.vincitore.punteggio && (
-                              <span className="text-xs font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded mt-0.5 block">+ {formattaPrezzo(alt.totalePrezzo - risultato.vincitore.totalePrezzo)}</span>
+                              <span className="block text-xs font-semibold mt-0.5" style={{ color: '#DC2626' }}>
+                                + {formattaPrezzo(alt.totalePrezzo - risultato.vincitore.totalePrezzo)}
+                              </span>
                             )}
                           </div>
                         </div>
@@ -779,35 +804,58 @@ const TabListaSpesa = ({ offerte, archivio = [] }) => {
                     </div>
                   </div>
                 )}
-                <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-sm">✓</span> Trovati in offerta</h4>
-                <div className="space-y-2 mb-6">
+
+                {/* Trovati */}
+                <h4 className="text-xs uppercase tracking-wider font-medium mb-3 flex items-center gap-2" style={{ color: T.textSec }}>
+                  <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px]" style={{ background: '#EEF2E4', color: T.primary }}>✓</span>
+                  In offerta questa settimana
+                </h4>
+                <div className="space-y-2 mb-4">
                   {risultato.vincitore.trovati.map((t, idx) => (
-                    <div key={idx} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm flex justify-between items-center">
+                    <div key={idx} className="flex justify-between items-center p-4 rounded-2xl"
+                      style={{ background: T.surface, border: `1px solid ${T.border}` }}>
                       <div>
-                        <div className="text-xs text-gray-400 mb-0.5">Cercato: "{t.ricerca}"</div>
-                        <div className="font-medium text-gray-900 leading-tight">{t.offerta.nome}{t.offerta.marca ? ` - ${t.offerta.marca}` : ''}</div>
-                        <div className="text-xs text-gray-500 mt-1">{t.offerta.grammatura}</div>
+                        <div className="text-xs mb-0.5 uppercase tracking-wider" style={{ color: T.textSec }}>"{t.ricerca}"</div>
+                        <div className="text-sm font-medium" style={{ color: T.textPrimary }}>
+                          {t.offerta.nome}{t.offerta.marca ? ` · ${t.offerta.marca}` : ''}
+                        </div>
+                        <div className="text-xs mt-0.5" style={{ color: T.textSec }}>{t.offerta.grammatura}</div>
                       </div>
-                      <div className="font-bold text-gray-900 bg-gray-50 px-2 py-1 rounded-lg">{formattaPrezzo(t.offerta.prezzo)}</div>
+                      <div className="font-semibold text-sm px-3 py-1.5 rounded-xl shrink-0 ml-3"
+                        style={{ background: '#EEF2E4', color: T.primary, fontFamily: "'Lora', serif" }}>
+                        {formattaPrezzo(t.offerta.prezzo)}
+                      </div>
                     </div>
                   ))}
                 </div>
+
+                {/* Non trovati */}
                 {risultato.vincitore.nonTrovati.length > 0 && (
                   <>
-                    <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2 opacity-70"><span className="w-6 h-6 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center text-sm">✕</span> Non in offerta</h4>
-                    <ul className="bg-gray-100/50 p-4 rounded-xl mb-6 space-y-1">
+                    <h4 className="text-xs uppercase tracking-wider font-medium mb-3 flex items-center gap-2" style={{ color: T.textSec }}>
+                      <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px]" style={{ background: T.border, color: T.textSec }}>✕</span>
+                      Non in offerta questa settimana
+                    </h4>
+                    <div className="rounded-2xl p-4 mb-6 space-y-1" style={{ background: T.surface, border: `1px solid ${T.border}` }}>
                       {risultato.vincitore.nonTrovati.map((item, idx) => (
-                        <li key={idx} className="text-gray-500 text-sm flex items-center gap-2"><span className="w-1.5 h-1.5 bg-gray-400 rounded-full"></span> {item}</li>
+                        <div key={idx} className="flex items-center gap-2 text-sm" style={{ color: T.textSec }}>
+                          <span className="w-1 h-1 rounded-full shrink-0" style={{ background: T.border }}></span>
+                          {item}
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   </>
                 )}
               </>
             ) : (
-              <div className="bg-orange-50 border border-orange-200 rounded-2xl p-6 text-center">
-                <AlertCircle size={32} className="text-orange-500 mx-auto mb-3" />
-                <h3 className="text-lg font-bold text-orange-800 mb-1">Nessun affare questa settimana</h3>
-                <p className="text-orange-700 text-sm">I prodotti che hai inserito non sono in promozione in nessun supermercato al momento.</p>
+              <div className="rounded-[20px] p-6 text-center" style={{ background: T.surface, border: `1px solid ${T.border}` }}>
+                <AlertCircle size={32} strokeWidth={1} className="mx-auto mb-3" style={{ color: T.accent }} />
+                <h3 className="font-medium mb-1" style={{ fontFamily: "'Lora', serif", fontSize: '18px', color: T.textPrimary }}>
+                  Nessun affare questa settimana
+                </h3>
+                <p className="text-sm" style={{ color: T.textSec }}>
+                  I prodotti che hai inserito non sono in promozione al momento.
+                </p>
               </div>
             )}
           </div>
@@ -817,83 +865,90 @@ const TabListaSpesa = ({ offerte, archivio = [] }) => {
   );
 };
 
-// ==========================================
-// 10. TAB STATO (invariato)
-// ==========================================
+// ─── Tab Stato ────────────────────────────────────────────────────────────────
 
 const TabStato = ({ statoVolantini }) => (
-  <div className="flex flex-col h-full bg-gray-50 pb-20">
-    <div className="px-4 py-6 bg-white shadow-sm border-b border-gray-100">
-      <h2 className="text-2xl font-bold text-gray-900">Stato Aggiornamenti</h2>
-      <p className="text-gray-500 text-sm mt-1">Monitoraggio validità volantini.</p>
+  <div className="flex flex-col h-full pb-28 overflow-y-auto" style={{ background: T.bg }}>
+    <div className="px-5 pt-8 pb-6" style={{ background: T.surface, borderBottom: `1px solid ${T.border}` }}>
+      <h2 style={{ fontFamily: "'Lora', serif", fontSize: '22px', fontWeight: 500, color: T.textPrimary }}>Stato volantini</h2>
+      <p className="text-sm mt-1" style={{ color: T.textSec }}>Validità degli aggiornamenti settimanali.</p>
     </div>
-    <div className="p-4 flex-1 overflow-y-auto">
-      <div className="space-y-3">
-        {statoVolantini.map(stato => {
-          const g = calcGiorniRimanenti(stato.valido_fino);
-          const statusColor = g < 0 ? 'bg-red-600' : g <= 2 ? 'bg-orange-500' : 'bg-green-500';
-          const statusBg = g < 0 ? 'bg-red-50 border-red-100' : g <= 2 ? 'bg-orange-50 border-orange-100' : 'bg-green-50 border-green-100';
-          return (
-            <div key={stato.id} className={`flex items-center justify-between p-4 rounded-xl border ${statusBg} bg-white shadow-sm`}>
-              <div className="flex items-center gap-3">
-                <div className={`w-3 h-3 rounded-full ${statusColor}`}></div>
-                <div>
-                  <h3 className="font-bold text-gray-900">{stato.insegna}</h3>
-                  <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5"><Tag size={10} /> {stato.n_prodotti} prodotti</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-0.5">Scadenza</div>
-                <div className={`text-sm font-medium ${g < 0 ? 'text-red-700' : 'text-gray-900'}`}>{g < 0 ? 'Scaduto' : stato.valido_fino}</div>
+    <div className="p-4 space-y-3">
+      {statoVolantini.map(stato => {
+        const g = calcGiorniRimanenti(stato.valido_fino);
+        const dot = g < 0 ? '#DC2626' : g <= 2 ? T.accent : T.primary;
+        return (
+          <div key={stato.id} className="flex items-center justify-between p-4 rounded-[20px]"
+            style={{ background: T.surface, border: `1px solid ${T.border}`, boxShadow: '0 4px 24px rgba(44,48,38,0.04)' }}>
+            <div className="flex items-center gap-3">
+              <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: dot }} />
+              <div>
+                <h3 className="font-medium text-sm" style={{ color: T.textPrimary }}>{stato.insegna}</h3>
+                <p className="text-xs mt-0.5" style={{ color: T.textSec }}>{stato.n_prodotti} prodotti</p>
               </div>
             </div>
-          );
-        })}
-      </div>
-      <div className="mt-8 bg-blue-50 rounded-xl p-4 flex gap-3 border border-blue-100">
-        <Info size={24} className="text-blue-600 shrink-0" />
-        <p className="text-sm text-blue-800 leading-relaxed"><strong>Nota Trasparenza:</strong> I prezzi mostrati sono esclusivamente quelli presenti nei volantini promozionali di questa settimana.</p>
+            <div className="text-right">
+              <div className="text-xs uppercase tracking-wider mb-0.5" style={{ color: T.textSec }}>Scadenza</div>
+              <div className="text-sm font-medium" style={{ color: g < 0 ? '#DC2626' : T.textPrimary }}>
+                {g < 0 ? 'Scaduto' : stato.valido_fino}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+      <div className="rounded-[20px] p-4 mt-2" style={{ background: '#EFF6FF', border: '1px solid #BFDBFE' }}>
+        <p className="text-sm leading-relaxed text-blue-800">
+          <strong>Trasparenza:</strong> i prezzi mostrati provengono esclusivamente dai volantini promozionali settimanali.
+        </p>
       </div>
     </div>
   </div>
 );
 
-// ==========================================
-// 11. TAB SUPERMERCATI (invariato)
-// ==========================================
+// ─── Tab Supermercati ─────────────────────────────────────────────────────────
 
 const TabSupermercati = ({ offerte, statoVolantini }) => {
   const [selectedInsegna, setSelectedInsegna] = useState(null);
+
   if (selectedInsegna) {
     const storeOffers = offerte.filter(o => o.insegna === selectedInsegna).sort((a, b) => a.prezzo - b.prezzo);
-    const headerColor = getColorInsegna(selectedInsegna);
+    const tileClass = getTileInsegna(selectedInsegna);
     return (
-      <div className="flex flex-col h-full bg-gray-50 pb-20">
-        <div className={`px-4 py-4 shadow-sm flex items-center gap-3 sticky top-0 z-10 ${headerColor}`}>
-          <button onClick={() => setSelectedInsegna(null)} className="p-1.5 bg-white/20 rounded-full hover:bg-white/30 transition-colors"><ArrowLeft size={24} /></button>
+      <div className="flex flex-col h-full pb-28" style={{ background: T.bg }}>
+        <div className={`px-5 py-4 flex items-center gap-3 sticky top-0 z-10 ${tileClass}`}>
+          <button onClick={() => setSelectedInsegna(null)} className="p-1.5 rounded-full bg-white/20 hover:bg-white/30 transition-all">
+            <ArrowLeft size={22} strokeWidth={1.5} />
+          </button>
           <div>
-            <h2 className="text-xl font-bold leading-tight">{selectedInsegna}</h2>
-            <p className="text-xs opacity-90">{storeOffers.length} offerte disponibili</p>
+            <h2 style={{ fontFamily: "'Lora', serif", fontSize: '20px', fontWeight: 500 }}>{selectedInsegna}</h2>
+            <p className="text-xs opacity-80">{storeOffers.length} offerte disponibili</p>
           </div>
         </div>
         <div className="p-4 overflow-y-auto flex-1">
-          {storeOffers.length > 0 ? storeOffers.map(o => <ProductCard key={o.id} offerta={o} />) : <div className="text-center py-10 text-gray-500">Nessuna offerta trovata.</div>}
+          {storeOffers.map((o, i) => <ProductCard key={o.id} offerta={o} index={i} />)}
         </div>
       </div>
     );
   }
+
   return (
-    <div className="flex flex-col h-full bg-gray-50 pb-20">
-      <div className="px-4 py-6 bg-white shadow-sm border-b border-gray-100 sticky top-0 z-10">
-        <h2 className="text-2xl font-bold text-gray-900">Sfoglia per Negozio</h2>
-        <p className="text-gray-500 text-sm mt-1">Scegli un'insegna per vedere tutti i suoi prodotti.</p>
+    <div className="flex flex-col h-full pb-28" style={{ background: T.bg }}>
+      <div className="px-5 pt-8 pb-5 sticky top-0 z-10" style={{ background: 'rgba(249,248,244,0.85)', backdropFilter: 'blur(12px)', borderBottom: `1px solid ${T.border}` }}>
+        <h2 style={{ fontFamily: "'Lora', serif", fontSize: '22px', fontWeight: 500, color: T.textPrimary }}>Negozi</h2>
+        <p className="text-sm mt-1" style={{ color: T.textSec }}>Sfoglia per insegna.</p>
       </div>
-      <div className="p-4 flex-1 overflow-y-auto">
+      <div className="p-4 overflow-y-auto flex-1">
         <div className="grid grid-cols-2 gap-3">
           {statoVolantini.map(stato => (
-            <button key={stato.id} onClick={() => setSelectedInsegna(stato.insegna)} className={`flex flex-col items-center justify-center p-4 rounded-2xl shadow-sm hover:shadow-md transition-all h-32 active:scale-95 ${getColorInsegna(stato.insegna)}`}>
-              <span className="text-lg font-bold text-center leading-tight mb-2">{stato.insegna}</span>
-              <span className="bg-white/25 px-2.5 py-1 rounded-lg text-xs font-medium">{stato.n_prodotti} offerte</span>
+            <button key={stato.id} onClick={() => setSelectedInsegna(stato.insegna)}
+              className={`flex flex-col items-center justify-center p-5 rounded-[20px] h-32 active:scale-95 transition-all ${getTileInsegna(stato.insegna)}`}
+              style={{ boxShadow: '0 4px 16px rgba(44,48,38,0.1)' }}>
+              <span style={{ fontFamily: "'Lora', serif", fontSize: '17px', fontWeight: 500, textAlign: 'center', lineHeight: '1.3', marginBottom: '8px' }}>
+                {stato.insegna}
+              </span>
+              <span className="text-xs px-2.5 py-1 rounded-lg font-medium" style={{ background: 'rgba(255,255,255,0.22)' }}>
+                {stato.n_prodotti} offerte
+              </span>
             </button>
           ))}
         </div>
@@ -902,9 +957,7 @@ const TabSupermercati = ({ offerte, statoVolantini }) => {
   );
 };
 
-// ==========================================
-// 12. APP PRINCIPALE (con Auth)
-// ==========================================
+// ─── App principale ───────────────────────────────────────────────────────────
 
 function AppInterna() {
   const [activeTab, setActiveTab] = useState('lista');
@@ -913,24 +966,18 @@ function AppInterna() {
   const [loading, setLoading] = useState(true);
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [archivio, setArchivio] = useState([]);
-
   const { utente, profilo, loading: authLoading, completaOnboarding } = useAuth();
 
-  // Fetch dati pubblici (invariato, non dipende dal login)
   useEffect(() => {
     const fetchData = async () => {
       try {
         const offerteCol = collection(db, 'offerte_attive');
         const offerteSnapshot = await getDocs(offerteCol);
         const oggi = new Date().toISOString().split('T')[0];
-        const offerteList = offerteSnapshot.docs
-          .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter(o => !o.valido_fino || o.valido_fino >= oggi);
-
+        const offerteList = offerteSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(o => !o.valido_fino || o.valido_fino >= oggi);
         const statoCol = collection(db, 'stato_volantini');
         const statoSnapshot = await getDocs(statoCol);
         const statoList = statoSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
         let archivioList = [];
         try {
           const archivioCol = collection(db, 'archivio_offerte');
@@ -942,20 +989,13 @@ function AppInterna() {
           });
           archivioList = (await Promise.all(archivioPromises)).flat();
         } catch {}
-
         if (offerteList.length === 0) {
-          setOfferte(MOCK_OFFERTE);
-          setStatoVolantini(MOCK_STATO);
-          setIsDemoMode(true);
+          setOfferte(MOCK_OFFERTE); setStatoVolantini(MOCK_STATO); setIsDemoMode(true);
         } else {
-          setOfferte(offerteList);
-          setStatoVolantini(statoList);
-          setArchivio(archivioList);
+          setOfferte(offerteList); setStatoVolantini(statoList); setArchivio(archivioList);
         }
       } catch {
-        setOfferte(MOCK_OFFERTE);
-        setStatoVolantini(MOCK_STATO);
-        setIsDemoMode(true);
+        setOfferte(MOCK_OFFERTE); setStatoVolantini(MOCK_STATO); setIsDemoMode(true);
       } finally {
         setLoading(false);
       }
@@ -963,38 +1003,49 @@ function AppInterna() {
     fetchData();
   }, []);
 
-  // Schermata di caricamento iniziale (Auth + dati)
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center text-green-600">
-        <ShoppingCart size={48} className="animate-bounce mb-4" />
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">RomaRisparmia</h1>
-        <p className="text-gray-500 flex items-center gap-2">
-          <span className="animate-spin inline-block w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full"></span>
-          Caricamento...
+      <div className="min-h-screen flex flex-col items-center justify-center" style={{ background: T.bg }}>
+        <IconaLenticchia size={52} className="animate-bounce mb-5" style={{ color: T.primary }} />
+        <h1 className="mb-2" style={{ fontFamily: "'Lora', serif", fontSize: '24px', fontWeight: 500, color: T.textPrimary }}>Lenticchia</h1>
+        <p className="flex items-center gap-2 text-sm" style={{ color: T.textSec }}>
+          <span className="animate-spin inline-block w-4 h-4 rounded-full border-2 border-t-transparent" style={{ borderColor: `${T.primary} transparent transparent transparent` }}></span>
+          Carico le offerte della settimana...
         </p>
       </div>
     );
   }
 
-  // Onboarding: mostrato solo se loggato e non ancora completato
   if (utente && profilo && profilo.onboarding_completato === false) {
     return (
-      <div className="w-full max-w-md mx-auto min-h-screen bg-white shadow-2xl relative font-sans text-gray-900">
+      <div className="w-full max-w-md mx-auto min-h-screen shadow-2xl relative" style={{ background: T.bg }}>
         <SchermataOnboarding onConferma={completaOnboarding} />
       </div>
     );
   }
 
+  const NAV_ITEMS = [
+    { id: 'lista',   icon: <ListTodo size={22} strokeWidth={1.5} />,   label: 'Spesa' },
+    { id: 'offerte', icon: <Tag size={22} strokeWidth={1.5} />,        label: 'Offerte' },
+    { id: 'negozi',  icon: <Store size={22} strokeWidth={1.5} />,      label: 'Negozi' },
+    { id: 'stato',   icon: <Info size={22} strokeWidth={1.5} />,       label: 'Stato' },
+    { id: 'profilo', icon: utente?.photoURL
+        ? <img src={utente.photoURL} alt="avatar" className="w-6 h-6 rounded-full" style={{ border: activeTab === 'profilo' ? `2px solid ${T.primary}` : '2px solid transparent' }} />
+        : <User size={22} strokeWidth={1.5} />,
+      label: 'Profilo'
+    },
+  ];
+
   return (
-    <div className="w-full max-w-md mx-auto min-h-screen bg-white shadow-2xl relative font-sans text-gray-900 overflow-hidden">
+    <div className="w-full max-w-md mx-auto min-h-screen relative overflow-hidden" style={{ background: T.bg, fontFamily: "'DM Sans', sans-serif", color: T.textPrimary }}>
+
       {isDemoMode && (
-        <div className="bg-yellow-400 text-yellow-900 text-[10px] uppercase font-bold text-center py-1 tracking-widest z-50 relative">
-          Modalità Demo (Dati Fittizi)
+        <div className="text-[10px] uppercase font-bold text-center py-1 tracking-widest z-50 relative bg-yellow-400 text-yellow-900">
+          Modalità Demo — dati di esempio
         </div>
       )}
 
-      <div className="h-screen overflow-hidden pb-[calc(env(safe-area-inset-bottom)+4rem)]">
+      <div className="h-screen overflow-hidden" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 5.5rem)' }}>
         {activeTab === 'offerte'  && <TabOfferte offerte={offerte} archivio={archivio} />}
         {activeTab === 'negozi'   && <TabSupermercati offerte={offerte} statoVolantini={statoVolantini} />}
         {activeTab === 'lista'    && <TabListaSpesa offerte={offerte} archivio={archivio} />}
@@ -1002,46 +1053,47 @@ function AppInterna() {
         {activeTab === 'profilo'  && <TabProfilo />}
       </div>
 
-      {/* Bottom Navigation — ora con tab Profilo */}
-      <div className="absolute bottom-0 w-full bg-white border-t border-gray-200 px-2 pt-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] z-50 flex justify-around">
-        <button onClick={() => setActiveTab('lista')} className={`flex flex-col items-center justify-center w-14 py-1 transition-colors ${activeTab === 'lista' ? 'text-green-600' : 'text-gray-400'}`}>
-          <ListTodo size={22} />
-          <span className="text-[10px] mt-1 font-medium">Spesa</span>
-        </button>
-        <button onClick={() => setActiveTab('offerte')} className={`flex flex-col items-center justify-center w-14 py-1 transition-colors ${activeTab === 'offerte' ? 'text-green-600' : 'text-gray-400'}`}>
-          <Tag size={22} />
-          <span className="text-[10px] mt-1 font-medium">Offerte</span>
-        </button>
-        <button onClick={() => setActiveTab('negozi')} className={`flex flex-col items-center justify-center w-14 py-1 transition-colors ${activeTab === 'negozi' ? 'text-green-600' : 'text-gray-400'}`}>
-          <Store size={22} />
-          <span className="text-[10px] mt-1 font-medium">Negozi</span>
-        </button>
-        <button onClick={() => setActiveTab('stato')} className={`flex flex-col items-center justify-center w-14 py-1 transition-colors ${activeTab === 'stato' ? 'text-green-600' : 'text-gray-400'}`}>
-          <Info size={22} />
-          <span className="text-[10px] mt-1 font-medium">Stato</span>
-        </button>
-        {/* Tab Profilo: mostra avatar se loggato, icona generica se no */}
-        <button onClick={() => setActiveTab('profilo')} className={`flex flex-col items-center justify-center w-14 py-1 transition-colors ${activeTab === 'profilo' ? 'text-green-600' : 'text-gray-400'}`}>
-          {utente?.photoURL ? (
-            <img src={utente.photoURL} alt="avatar" className={`w-6 h-6 rounded-full border-2 ${activeTab === 'profilo' ? 'border-green-500' : 'border-gray-300'}`} />
-          ) : (
-            <User size={22} />
-          )}
-          <span className="text-[10px] mt-1 font-medium">Profilo</span>
-        </button>
+      {/* Floating pill navbar — design Gemini */}
+      <div
+        className="fixed bottom-5 left-4 right-4 flex justify-around items-center py-3 px-2 z-50"
+        style={{
+          background: T.textPrimary,
+          borderRadius: '999px',
+          boxShadow: '0 20px 40px rgba(44,48,38,0.22)',
+          backdropFilter: 'blur(12px)',
+          maxWidth: '428px',
+          margin: '0 auto',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: 'calc(100% - 2rem)',
+        }}
+      >
+        {NAV_ITEMS.map(item => (
+          <button
+            key={item.id}
+            onClick={() => setActiveTab(item.id)}
+            className="flex flex-col items-center justify-center px-3 py-1 rounded-full transition-all active:scale-90"
+            style={{ color: activeTab === item.id ? '#fff' : 'rgba(255,255,255,0.45)', minWidth: '52px' }}
+          >
+            {item.icon}
+            <span className="text-[9px] mt-1 font-medium tracking-wide">{item.label}</span>
+          </button>
+        ))}
       </div>
 
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Lora:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap');
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-fade-in-up { animation: fadeInUp 0.4s ease-out forwards; }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in-up { animation: fadeInUp 0.35s ease-out forwards; }
+        @keyframes spring { 0% { transform: scale(0.92); opacity: 0; } 60% { transform: scale(1.03); } 100% { transform: scale(1); opacity: 1; } }
+        .animate-spring { animation: spring 0.45s cubic-bezier(0.34,1.56,0.64,1) forwards; }
       `}</style>
     </div>
   );
 }
 
-// AuthProvider wrappa tutto — è il punto di ingresso unico
 export default function App() {
   return (
     <AuthProvider>

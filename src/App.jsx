@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { 
   Search, 
   ListTodo, 
@@ -753,7 +754,7 @@ const TabResoconto = ({ uid }) => {
         return;
       }
       try {
-        const app = initializeApp(firebaseConfig);
+        const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const q = query(
           collection(db, 'prezzi_scontrini'),
@@ -1049,6 +1050,18 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isDemoMode, setIsDemoMode] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+
+  // Inizializza Firebase una sola volta e sottoscrivi auth state
+  useEffect(() => {
+    if (firebaseConfig.apiKey === "INSERISCI_QUI") return;
+    const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const unsub = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user ?? null);
+    });
+    return () => unsub();
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -1064,7 +1077,7 @@ export default function App() {
         }
 
         // Setup reale Firebase (Sola lettura)
-        const app = initializeApp(firebaseConfig);
+        const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
         const db = getFirestore(app);
         
         // Fetch Offerte
@@ -1132,7 +1145,7 @@ export default function App() {
             {activeTab === 'offerte' && <TabOfferte offerte={offerte} />}
             {activeTab === 'negozi' && <TabSupermercati offerte={offerte} statoVolantini={statoVolantini} />}
             {activeTab === 'lista' && <TabListaSpesa offerte={offerte} />}
-            {activeTab === 'resoconto' && <TabResoconto uid={null} />}
+            {activeTab === 'resoconto' && <TabResoconto uid={currentUser?.uid ?? null} />}
             {activeTab === 'stato' && <TabStato statoVolantini={statoVolantini} />}
           </>
         )}

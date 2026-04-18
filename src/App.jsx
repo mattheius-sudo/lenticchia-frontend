@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, limit, addDoc, updateDoc, doc, serverTimestamp, increment, getDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { AuthProvider, useAuth, INSEGNE_DISPONIBILI } from './AuthContext';
 // statoVolantini viene ora passato come prop anche alla selezione supermercati
@@ -280,9 +280,6 @@ const useSegnalazioniStore = () => {
     setSegnalati(prev => new Set([...prev, docId]));
 
     try {
-      const firestoreModule = await import('firebase/firestore');
-      const { doc, updateDoc, increment, getDoc } = firestoreModule;
-      const { db } = await import('./firebase');
 
       const ref = doc(db, collectionName, docId);
       await updateDoc(ref, { segnalazioni: increment(1) });
@@ -1232,8 +1229,6 @@ const TabScontrino = () => {
     setStato('caricando');
 
     try {
-      const { addDoc, collection, serverTimestamp } = await import('firebase/firestore');
-      const { db } = await import('./firebase');
 
       await addDoc(collection(db, 'coda_scontrini'), {
         uid: utente.uid,
@@ -1272,8 +1267,6 @@ const TabScontrino = () => {
     setStato('caricando');
 
     try {
-      const { addDoc, collection, serverTimestamp } = await import('firebase/firestore');
-      const { db } = await import('./firebase');
 
       await addDoc(collection(db, 'coda_volantini'), {
         uid: utente.uid,
@@ -1636,8 +1629,6 @@ const ProductCardCompatta = ({ offerta, index = 0, segnalati, segnala }) => {
     setConfermato(true); // ottimismo UI
 
     try {
-      const { doc, updateDoc, increment } = await import('firebase/firestore');
-      const { db } = await import('./firebase');
       await updateDoc(doc(db, 'offerte_attive', offerta.id), {
         conferme: increment(1),
       });
@@ -3098,9 +3089,6 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk }) => {
     setStato('salvando');
 
     try {
-      const { addDoc, updateDoc, doc, collection, serverTimestamp, increment, getDoc } =
-        await import('firebase/firestore');
-      const { db } = await import('./firebase');
 
       const tuttiProdotti = estratto.prodotti || [];
 
@@ -3212,8 +3200,6 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk }) => {
 
   const rifiutaScontrino = async () => {
     try {
-      const { updateDoc, doc, serverTimestamp } = await import('firebase/firestore');
-      const { db } = await import('./firebase');
       await updateDoc(doc(db, 'coda_scontrini', scontrino.id), {
         stato: 'rifiutato',
         rifiutato_il: serverTimestamp(),

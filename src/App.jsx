@@ -3290,6 +3290,22 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk }) => {
                 </p>
               </div>
 
+              {/* Banner anomalie — se il backend ha trovato prezzi sospetti */}
+              {(estratto.prodotti || []).some(p => p.anomalia) && (
+                <div className="mx-4 mt-3 mb-1 rounded-2xl px-4 py-3 flex items-start gap-2.5"
+                  style={{ background: '#FFF8F0', border: `1px solid #F4C5A8` }}>
+                  <AlertTriangle size={15} strokeWidth={1.5} style={{ color: T.accent, marginTop: '1px', flexShrink: 0 }} />
+                  <div>
+                    <p className="text-xs font-semibold" style={{ color: T.accent }}>
+                      {(estratto.prodotti || []).filter(p => p.anomalia).length} prezzi insoliti rilevati
+                    </p>
+                    <p className="text-xs mt-0.5 leading-relaxed" style={{ color: T.textSec }}>
+                      Evidenziati in arancione — correggili o rimuovili prima di confermare.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {(estratto.prodotti || []).map((p, idx) => (
                 <div key={idx} style={{ borderTop: idx > 0 ? `1px solid ${T.border}` : 'none' }}>
                   {prodottoInEdit === idx ? (
@@ -3367,9 +3383,10 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk }) => {
                       </div>
                     </div>
                   ) : (
-                    /* Riga prodotto compatta */
+                    /* Riga prodotto compatta — con badge anomalia se flaggato */
                     <div
-                      className="flex items-center px-5 py-3 cursor-pointer active:bg-stone-50 transition-colors"
+                      className="flex items-center px-5 py-3 cursor-pointer transition-colors"
+                      style={{ background: p.anomalia ? '#FFF8F0' : 'transparent' }}
                       onClick={() => setProdottoInEdit(idx)}>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm truncate" style={{ color: T.textPrimary }}>
@@ -3382,9 +3399,18 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk }) => {
                             <span style={{ color: T.textSec }}> · raw: {p.nome_raw}</span>
                           )}
                         </p>
+                        {/* Avviso anomalia prezzo — visibile solo se flaggato dal backend */}
+                        {p.anomalia && (
+                          <p className="text-[10px] mt-1 font-medium leading-tight"
+                            style={{ color: p.anomalia_severita === 'bloccante' ? '#DC2626' : T.accent }}>
+                            ⚠️ {p.anomalia_motivo || 'Prezzo insolito — verifica prima di confermare'}
+                          </p>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 ml-3 shrink-0">
-                        <span className="font-semibold text-sm" style={{ fontFamily: "'Lora', serif", color: T.textPrimary }}>
+                        <span className="font-semibold text-sm"
+                          style={{ fontFamily: "'Lora', serif",
+                                   color: p.anomalia ? T.accent : T.textPrimary }}>
                           {formattaPrezzo((p.prezzo_unitario || 0) * (p.quantita || 1))}
                         </span>
                         <Pencil size={13} strokeWidth={1.5} style={{ color: T.textSec }} />

@@ -3098,55 +3098,92 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk }) => {
     setStato('salvando');
 
     try {
-      const { addDoc, updateDoc, doc, collection, serverTimestamp, increment } = await import('firebase/firestore');
+      const { addDoc, updateDoc, doc, collection, serverTimestamp, increment, getDoc } =
+        await import('firebase/firestore');
       const { db } = await import('./firebase');
 
-      const prodotti = estratto.prodotti || [];
-      const n = prodotti.length;
+      const tuttiProdotti = estratto.prodotti || [];
 
-      // ── FASE 2a: crea documento in prezzi_scontrini ───────────
-      await addDoc(collection(db, 'prezzi_scontrini'), {
-        uid:               utente.uid,
-        insegna:           estratto.insegna || '',
-        insegna_normalizzata: (estratto.insegna || '').toLowerCase().trim(),
-        indirizzo:         estratto.indirizzo || '',
-        data_acquisto:     estratto.data_acquisto || '',
-        totale_scontrino:  estratto.totale || 0,
-        prodotti:          prodotti,
-        n_prodotti:        n,
-        stato:             'verificato',
-        validato_dall_utente: true,
-        data_caricamento:  serverTimestamp(),
-        coda_doc_id:       scontrino.id,
+      // Separa specifici da aggregati usando il flag _classe del backend.
+      // Se il backend non ha classificato (scontrino vecchio), tratta tutto come specifico.
+      const prodottiSpecifici = tuttiProdotti.filter(
+        p => !p._classe || p._classe === 'specifico'
+      );
+      const prodottiAggregati = tuttiProdotti.filter(p => p._classe === 'aggregato');
+
+      const tipoScontrino = scontrino.tipo_scontrino ||
+        (prodottiSpecifici.length > 0 ? 'dettagliato' : 'generico');
+
+      const nSpecifici = prodottiSpecifici.length;
+      const totale = estratto.totale || 0;
+
+      // ── FASE 2a: prodotti specifici → prezzi_scontrini (db pubblico) ──
+      // Solo se ci sono prodotti specifici — contribuiscono al confronto prezzi.
+      // I campi _classe e anomalia_* vengono rimossi prima del salvataggio.
+      if (nSpecifici > 0) {
+        const prodottiPuliti = prodottiSpecifici.map(p => {
+          const { _classe, anomalia, anomalia_severita, anomalia_motivo, ...resto } = p;
+          return resto;
+        });
+        await addDoc(collection(db, 'prezzi_scontrini'), {
+          uid:                  utente.uid,
+          insegna:              estratto.insegna || '',
+          insegna_normalizzata: (estratto.insegna || '').toLowerCase().trim(),
+          indirizzo:            estratto.indirizzo || '',
+          data_acquisto:        estratto.data_acquisto || '',
+          totale_scontrino:     totale,
+          prodotti:             prodottiPuliti,
+          n_prodotti:           nSpecifici,
+          stato:                'verificato',
+          validato_dall_utente: true,
+          data_caricamento:     serverTimestamp(),
+          coda_doc_id:          scontrino.id,
+        });
+      }
+
+      // ── FASE 2b: scontrino completo → spese_personali (registro privato) ──
+      // Sempre — indipendentemente da tipo_scontrino.
+      // Il totale e la data sono sempre utili per il resoconto mensile.
+      const tuttiPuliti = tuttiProdotti.map(p => {
+        const { _classe, anomalia, anomalia_severita, anomalia_motivo, ...resto } = p;
+        return { ...resto, tipo_voce: p._classe || 'specifico' };
       });
+      await addDoc(
+        collection(db, 'spese_personali', utente.uid, 'scontrini'),
+        {
+          insegna:          estratto.insegna || '',
+          indirizzo:        estratto.indirizzo || '',
+          data_acquisto:    estratto.data_acquisto || '',
+          totale_scontrino: totale,
+          tipo_scontrino:   tipoScontrino,
+          prodotti:         tuttiPuliti,
+          n_prodotti_tot:   tuttiProdotti.length,
+          n_specifici:      nSpecifici,
+          n_aggregati:      prodottiAggregati.length,
+          data_registrazione: serverTimestamp(),
+          coda_doc_id:      scontrino.id,
+        }
+      );
 
-      // ── FASE 2b: calcola punti ────────────────────────────────
+      // ── FASE 2c: calcola punti ────────────────────────────────────────
+      // Punti base: sempre (per qualsiasi scontrino confermato)
+      // Bonus prodotti: solo se ci sono specifici (contribuisce al db)
       let punti = PUNTI_BASE_SCONTRINO;
-      if (n > 10) punti += PUNTI_BONUS_PRODOTTI;
-      // Il bonus prima settimana lo verifichiamo lato client
-      // (semplificazione — per max rigore usare Cloud Function)
-      const oggiStr = new Date().toISOString().split('T')[0];
-      const lunediStr = (() => {
-        const d = new Date(); d.setDate(d.getDate() - d.getDay() + 1);
-        return d.toISOString().split('T')[0];
-      })();
-      // Se non ci sono altri scontrini questa settimana nel tab Spese → bonus
-      // (approssimazione: controllo fatto prima del salvataggio quindi 0 = primo)
-      punti += PUNTI_BONUS_SETTIMANA; // semplificato — in prod usare Cloud Function
+      if (nSpecifici > 10) punti += PUNTI_BONUS_PRODOTTI;
+      punti += PUNTI_BONUS_SETTIMANA;
 
-      // ── FASE 2c: aggiorna coda_scontrini → elaborato ─────────
+      // ── FASE 2d: aggiorna coda_scontrini → elaborato ─────────────────
       await updateDoc(doc(db, 'coda_scontrini', scontrino.id), {
-        stato:             'elaborato',
-        punti_assegnati:   punti,
-        n_prodotti_validati: n,
-        validato_il:       serverTimestamp(),
-        // Non cancelliamo estratto — utile per audit trail
+        stato:               'elaborato',
+        punti_assegnati:     punti,
+        n_prodotti_validati: tuttiProdotti.length,
+        n_specifici_salvati: nSpecifici,
+        tipo_scontrino:      tipoScontrino,
+        validato_il:         serverTimestamp(),
       });
 
-      // ── FASE 2d: assegna punti al profilo ────────────────────
+      // ── FASE 2e: assegna punti al profilo ────────────────────────────
       const profiloRef = doc(db, 'users', utente.uid, 'private', 'profilo');
-      // Usiamo increment atomico per evitare race condition
-      const { getDoc } = await import('firebase/firestore');
       const profiloSnap = await getDoc(profiloRef);
       if (profiloSnap.exists()) {
         const puntiAttuali = profiloSnap.data().punti || 0;
@@ -3162,10 +3199,7 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk }) => {
       setStato('salvato');
       setTimeout(() => {
         onValidatoOk(scontrino.id);
-        // Passa al prossimo se ce ne sono altri
-        if (indice < scontriniDaValidare.length - 1) {
-          setIndice(prev => prev + 1);
-        }
+        if (indice < scontriniDaValidare.length - 1) setIndice(prev => prev + 1);
         setStato('idle');
         setPuntiAnimati(0);
       }, 2500);

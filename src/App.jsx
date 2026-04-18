@@ -1236,22 +1236,20 @@ const TabScontrino = () => {
 
   const inviaScontrino = async () => {
     if (!foto.length) return;
+    if (!utente?.uid) {
+      setStato('errore');
+      setMessaggio('Sessione scaduta — rieffettua il login.');
+      return;
+    }
     setStato('caricando');
 
     try {
-
       await addDoc(collection(db, 'coda_scontrini'), {
-        uid: utente.uid,
-        immagini_b64: foto.map(f => f.base64),
-        n_foto: foto.length,
-        stato: 'in_attesa',
+        uid:              utente.uid,
+        immagini_b64:     foto.map(f => f.base64),
+        n_foto:           foto.length,
+        stato:            'in_attesa',
         data_caricamento: serverTimestamp(),
-        note_utente: '',
-        // Metadati anti-frode (non bloccanti — presenti solo se disponibili)
-        posizione_upload: posizioneRilevata
-          ? { lat: posizioneRilevata.lat, lng: posizioneRilevata.lng }
-          : null,
-        user_agent: navigator.userAgent.slice(0, 200),
       });
 
       setFoto([]);
@@ -1263,14 +1261,13 @@ const TabScontrino = () => {
     } catch (err) {
       console.error('Errore invio scontrino:', err);
       setStato('errore');
-      // Mostra il messaggio specifico dell'errore per facilitare il debug
-      const msg = err?.code === 'permission-denied'
-        ? 'Permesso negato — rieffettua il login e riprova.'
-        : err?.message?.includes('exceeds')
-        ? 'Foto troppo grande — riprova con una foto di qualità inferiore.'
-        : err?.code
-        ? `Errore ${err.code} — riprova tra qualche secondo.`
-        : 'Errore nel caricamento. Riprova.';
+      // Mostra codice errore esatto per debug
+      const code = err?.code || '';
+      const msg = code === 'permission-denied'
+        ? `Permesso negato (${code}) — uid: ${utente?.uid?.slice(0,8)}. Riprova o rieffettua il login.`
+        : code
+        ? `Errore Firebase: ${code}`
+        : `Errore: ${err?.message?.slice(0, 100) || 'sconosciuto'}`;
       setMessaggio(msg);
     }
   };

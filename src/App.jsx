@@ -1137,12 +1137,12 @@ const TabScontrino = () => {
     setPosizioneRilevata(null);
   };
 
-  // Comprime immagine a max 1200px, qualità 70%
+  // Comprime immagine a max 800px, qualità 55% — ottimizzato per Firestore (limite 1MB doc)
   const comprimiImmagine = (file) => new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
-      const maxDim = 1200;
+      const maxDim = 800;
       let { width, height } = img;
       if (width > maxDim || height > maxDim) {
         if (width > height) { height = Math.round(height * maxDim / width); width = maxDim; }
@@ -1152,7 +1152,17 @@ const TabScontrino = () => {
       canvas.width = width; canvas.height = height;
       canvas.getContext('2d').drawImage(img, 0, 0, width, height);
       URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL('image/jpeg', 0.70));
+      const b64 = canvas.toDataURL('image/jpeg', 0.55);
+      // Controllo dimensione: Firestore limite 1MB per documento
+      // base64 è ~1.37x il binario, quindi max ~700KB binario per stare sotto 1MB doc
+      const kbStimati = Math.round(b64.length * 0.75 / 1024);
+      if (kbStimati > 700) {
+        // Riprova con qualità ancora più bassa
+        const b64low = canvas.toDataURL('image/jpeg', 0.35);
+        resolve(b64low);
+      } else {
+        resolve(b64);
+      }
     };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Errore lettura immagine')); };
     img.src = url;
@@ -1253,7 +1263,15 @@ const TabScontrino = () => {
     } catch (err) {
       console.error('Errore invio scontrino:', err);
       setStato('errore');
-      setMessaggio('Errore nel caricamento. Riprova.');
+      // Mostra il messaggio specifico dell'errore per facilitare il debug
+      const msg = err?.code === 'permission-denied'
+        ? 'Permesso negato — rieffettua il login e riprova.'
+        : err?.message?.includes('exceeds')
+        ? 'Foto troppo grande — riprova con una foto di qualità inferiore.'
+        : err?.code
+        ? `Errore ${err.code} — riprova tra qualche secondo.`
+        : 'Errore nel caricamento. Riprova.';
+      setMessaggio(msg);
     }
   };
 
@@ -1291,7 +1309,12 @@ const TabScontrino = () => {
     } catch (err) {
       console.error('Errore invio volantino:', err);
       setStato('errore');
-      setMessaggio('Errore nel caricamento. Riprova.');
+      const msg = err?.code === 'permission-denied'
+        ? 'Permesso negato — rieffettua il login e riprova.'
+        : err?.code
+        ? `Errore ${err.code} — riprova tra qualche secondo.`
+        : 'Errore nel caricamento. Riprova.';
+      setMessaggio(msg);
     }
   };
 

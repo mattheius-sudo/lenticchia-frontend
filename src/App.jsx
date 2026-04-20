@@ -3081,6 +3081,8 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk }) => {
   const [stato, setStato]               = useState('idle');
   const [puntiAnimati, setPuntiAnimati] = useState(0);
   const [prodottoInEdit, setProdottoInEdit] = useState(null); // indice prodotto in editing
+  // C: modal condivisione community
+  const [modalCondivisione, setModalCondivisione] = useState(null); // { prodottiSpecifici, prodottiAggregati, punti } | null
 
   const scontrino = scontriniDaValidare[indice];
 
@@ -3112,8 +3114,10 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk }) => {
     setEstratto(prev => ({ ...prev, prodotti: prev.prodotti.filter((_, i) => i !== idx) }));
   };
 
+  const campiObbligatoriOk = !!(estratto?.insegna?.trim()) && !!(estratto?.data_acquisto?.trim());
+
   const confermaScontrino = async () => {
-    if (stato === 'salvando') return;
+    if (stato === 'salvando' || !campiObbligatoriOk) return;
     setStato('salvando');
 
     try {
@@ -3121,7 +3125,6 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk }) => {
       const tuttiProdotti = estratto.prodotti || [];
 
       // Separa specifici da aggregati usando il flag _classe del backend.
-      // Se il backend non ha classificato (scontrino vecchio), tratta tutto come specifico.
       const prodottiSpecifici = tuttiProdotti.filter(
         p => !p._classe || p._classe === 'specifico'
       );
@@ -3133,33 +3136,7 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk }) => {
       const nSpecifici = prodottiSpecifici.length;
       const totale = estratto.totale || 0;
 
-      // ── FASE 2a: prodotti specifici → prezzi_scontrini (db pubblico) ──
-      // Solo se ci sono prodotti specifici — contribuiscono al confronto prezzi.
-      // I campi _classe e anomalia_* vengono rimossi prima del salvataggio.
-      if (nSpecifici > 0) {
-        const prodottiPuliti = prodottiSpecifici.map(p => {
-          const { _classe, anomalia, anomalia_severita, anomalia_motivo, ...resto } = p;
-          return resto;
-        });
-        await addDoc(collection(db, 'prezzi_scontrini'), {
-          uid:                  utente.uid,
-          insegna:              estratto.insegna || '',
-          insegna_normalizzata: (estratto.insegna || '').toLowerCase().trim(),
-          indirizzo:            estratto.indirizzo || '',
-          data_acquisto:        estratto.data_acquisto || '',
-          totale_scontrino:     totale,
-          prodotti:             prodottiPuliti,
-          n_prodotti:           nSpecifici,
-          stato:                'verificato',
-          validato_dall_utente: true,
-          data_caricamento:     serverTimestamp(),
-          coda_doc_id:          scontrino.id,
-        });
-      }
-
-      // ── FASE 2b: scontrino completo → spese_personali (registro privato) ──
-      // Sempre — indipendentemente da tipo_scontrino.
-      // Il totale e la data sono sempre utili per il resoconto mensile.
+      // ── FASE 2b: scontrino completo → spese_personali (registro privato, SEMPRE) ──
       const tuttiPuliti = tuttiProdotti.map(p => {
         const { _classe, anomalia, anomalia_severita, anomalia_motivo, ...resto } = p;
         return { ...resto, tipo_voce: p._classe || 'specifico' };
@@ -3182,8 +3159,6 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk }) => {
       );
 
       // ── FASE 2c: calcola punti ────────────────────────────────────────
-      // Punti base: sempre (per qualsiasi scontrino confermato)
-      // Bonus prodotti: solo se ci sono specifici (contribuisce al db)
       let punti = PUNTI_BASE_SCONTRINO;
       if (nSpecifici > 10) punti += PUNTI_BONUS_PRODOTTI;
       punti += PUNTI_BONUS_SETTIMANA;
@@ -3213,17 +3188,69 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk }) => {
 
       setPuntiAnimati(punti);
       setStato('salvato');
-      setTimeout(() => {
-        onValidatoOk(scontrino.id);
-        if (indice < scontriniDaValidare.length - 1) setIndice(prev => prev + 1);
-        setStato('idle');
-        setPuntiAnimati(0);
-      }, 2500);
+
+      // ── C: se ci sono prodotti specifici → mostra modal condivisione ──
+      if (nSpecifici > 0) {
+        const prodottiSpecificiPuliti = prodottiSpecifici.map(p => {
+          const { _classe, anomalia, anomalia_severita, anomalia_motivo, ...resto } = p;
+          return resto;
+        });
+        setModalCondivisione({
+          prodottiSpecifici: prodottiSpecificiPuliti,
+          prodottiAggregati: prodottiAggregati.map(p => {
+            const { _classe, anomalia, anomalia_severita, anomalia_motivo, ...resto } = p;
+            return resto;
+          }),
+          punti,
+          estratto,
+          scontrinoId: scontrino.id,
+        });
+      } else {
+        // Nessun prodotto specifico → avanza subito
+        setTimeout(() => {
+          onValidatoOk(scontrino.id);
+          if (indice < scontriniDaValidare.length - 1) setIndice(prev => prev + 1);
+          setStato('idle');
+          setPuntiAnimati(0);
+        }, 2500);
+      }
 
     } catch (err) {
       console.error('Errore conferma scontrino:', err);
       setStato('errore');
     }
+  };
+
+  // C: salvataggio community dopo consenso utente
+  const condividiConCommunity = async () => {
+    if (!modalCondivisione) return;
+    try {
+      await addDoc(collection(db, 'prezzi_scontrini'), {
+        uid:                  utente.uid,
+        insegna:              modalCondivisione.estratto.insegna || '',
+        insegna_normalizzata: (modalCondivisione.estratto.insegna || '').toLowerCase().trim(),
+        indirizzo:            modalCondivisione.estratto.indirizzo || '',
+        data_acquisto:        modalCondivisione.estratto.data_acquisto || '',
+        totale_scontrino:     modalCondivisione.estratto.totale || 0,
+        prodotti:             modalCondivisione.prodottiSpecifici,
+        n_prodotti:           modalCondivisione.prodottiSpecifici.length,
+        stato:                'verificato',
+        validato_dall_utente: true,
+        data_caricamento:     serverTimestamp(),
+        coda_doc_id:          modalCondivisione.scontrinoId,
+      });
+    } catch (err) {
+      console.error('Errore condivisione community:', err);
+    }
+    chiudiModalEAvanza();
+  };
+
+  const chiudiModalEAvanza = () => {
+    setModalCondivisione(null);
+    onValidatoOk(scontrino.id);
+    if (indice < scontriniDaValidare.length - 1) setIndice(prev => prev + 1);
+    setStato('idle');
+    setPuntiAnimati(0);
   };
 
   const rifiutaScontrino = async () => {
@@ -3269,6 +3296,102 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk }) => {
 
       <div className="px-4 -mt-4 relative z-10 space-y-4">
 
+        {/* ── C: Modal condivisione community ── */}
+        {modalCondivisione && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center"
+            style={{ background: 'rgba(44,48,38,0.6)', backdropFilter: 'blur(4px)' }}>
+            <div className="w-full max-w-md rounded-t-[28px] pb-10 animate-slide-up"
+              style={{ background: T.surface, boxShadow: '0 -8px 40px rgba(44,48,38,0.2)' }}>
+
+              {/* Handle */}
+              <div className="flex justify-center pt-3 pb-4">
+                <div className="w-10 h-1 rounded-full" style={{ background: T.border }} />
+              </div>
+
+              <div className="px-5 space-y-4">
+                {/* Titolo */}
+                <div>
+                  <h3 style={{ fontFamily: "'Lora', serif", fontSize: '20px', fontWeight: 500, color: T.textPrimary }}>
+                    Condividi con la community?
+                  </h3>
+                  <p className="text-sm mt-1" style={{ color: T.textSec }}>
+                    Aiuta gli altri utenti di Roma a risparmiare — i tuoi prezzi vengono condivisi in forma anonima.
+                  </p>
+                </div>
+
+                {/* Prodotti da condividere */}
+                <div className="rounded-[16px] overflow-hidden"
+                  style={{ border: `1px solid ${T.border}` }}>
+                  <div className="px-4 py-2.5 flex items-center justify-between"
+                    style={{ background: '#EEF2E4', borderBottom: `1px solid #C8D9A0` }}>
+                    <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: T.primary }}>
+                      ✓ Verranno condivisi ({modalCondivisione.prodottiSpecifici.length})
+                    </p>
+                  </div>
+                  {modalCondivisione.prodottiSpecifici.slice(0, 5).map((p, i) => (
+                    <div key={i} className="flex items-center justify-between px-4 py-2.5"
+                      style={{ borderTop: i > 0 ? `1px solid ${T.border}` : 'none' }}>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm truncate" style={{ color: T.textPrimary }}>
+                          {p.nome_normalizzato || p.nome_raw}
+                          {p.marca ? <span style={{ color: T.textSec }}> · {p.marca}</span> : null}
+                        </p>
+                        {p.grammatura && <p className="text-xs" style={{ color: T.textSec }}>{p.grammatura}</p>}
+                      </div>
+                      <span className="text-sm font-semibold ml-3 shrink-0"
+                        style={{ fontFamily: "'Lora', serif", color: T.textPrimary }}>
+                        {formattaPrezzo(p.prezzo_unitario || 0)}
+                      </span>
+                    </div>
+                  ))}
+                  {modalCondivisione.prodottiSpecifici.length > 5 && (
+                    <div className="px-4 py-2 text-center">
+                      <p className="text-xs" style={{ color: T.textSec }}>
+                        +{modalCondivisione.prodottiSpecifici.length - 5} altri prodotti
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Prodotti NON condivisi */}
+                {modalCondivisione.prodottiAggregati.length > 0 && (
+                  <div className="rounded-[16px] px-4 py-3"
+                    style={{ background: T.bg, border: `1px solid ${T.border}` }}>
+                    <p className="text-xs font-medium mb-1.5" style={{ color: T.textSec }}>
+                      Non condivisi — voci generiche ({modalCondivisione.prodottiAggregati.length}):
+                    </p>
+                    <p className="text-xs leading-relaxed" style={{ color: T.textSec }}>
+                      {modalCondivisione.prodottiAggregati
+                        .map(p => p.nome_normalizzato || p.nome_raw)
+                        .slice(0, 4)
+                        .join(', ')}
+                      {modalCondivisione.prodottiAggregati.length > 4 ? '...' : ''}
+                    </p>
+                    <p className="text-[10px] mt-1.5 leading-relaxed" style={{ color: T.textSec }}>
+                      Voci tipo "gastronomia", "scatolame", "rep. panetteria" non sono utili agli altri utenti e restano solo nel tuo registro personale.
+                    </p>
+                  </div>
+                )}
+
+                {/* CTA */}
+                <button
+                  onClick={condividiConCommunity}
+                  className="w-full py-4 rounded-[20px] font-medium text-white transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                  style={{ background: T.primary, fontFamily: "'DM Sans', sans-serif", boxShadow: '0 8px 24px rgba(100,113,68,0.3)' }}>
+                  🤝 Sì, condividi con la community
+                </button>
+
+                <button
+                  onClick={chiudiModalEAvanza}
+                  className="w-full py-3 rounded-[20px] text-sm transition-all"
+                  style={{ color: T.textSec, border: `1px solid ${T.border}`, background: T.surface }}>
+                  No grazie, tienili solo per me
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ── Stato: salvato con animazione punti ── */}
         {stato === 'salvato' && (
           <div className="rounded-[24px] p-8 flex flex-col items-center gap-4 animate-spring"
@@ -3293,6 +3416,30 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk }) => {
 
         {stato !== 'salvato' && (
           <>
+            {/* ── A: Banner riferimento scontrino fisico ── */}
+            <div className="rounded-[20px] px-4 py-3.5 flex items-center gap-3"
+              style={{ background: '#EEF2E4', border: `1px solid #C8D9A0` }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                style={{ background: T.primary }}>
+                <Receipt size={18} strokeWidth={1.5} className="text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium leading-snug" style={{ color: T.textPrimary }}>
+                  {scontrino.n_foto > 1
+                    ? `Scontrino in ${scontrino.n_foto} foto`
+                    : 'Scontrino caricato il'}{' '}
+                  {scontrino.data_caricamento
+                    ? (scontrino.data_caricamento.toDate
+                        ? scontrino.data_caricamento.toDate().toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })
+                        : String(scontrino.data_caricamento).slice(0, 10))
+                    : ''}
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: T.textSec }}>
+                  Le immagini originali sono state cancellate per privacy dopo l'estrazione AI — confronta con lo scontrino fisico se necessario.
+                </p>
+              </div>
+            </div>
+
             {/* ── Card testata scontrino ── */}
             <div className="rounded-[20px] p-5"
               style={{ background: T.surface, border: `1px solid ${T.border}`, boxShadow: '0 4px 20px rgba(44,48,38,0.07)' }}>
@@ -3480,11 +3627,22 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk }) => {
               </div>
             )}
 
+            {/* B: avviso campi obbligatori */}
+            {!campiObbligatoriOk && (
+              <div className="rounded-2xl px-4 py-3 flex items-center gap-2.5"
+                style={{ background: '#FFF8F0', border: `1px solid #F4C5A8` }}>
+                <AlertTriangle size={14} strokeWidth={1.5} style={{ color: T.accent, flexShrink: 0 }} />
+                <p className="text-xs" style={{ color: T.accent }}>
+                  Compila <strong>Supermercato</strong> e <strong>Data acquisto</strong> prima di confermare.
+                </p>
+              </div>
+            )}
+
             <button
               onClick={confermaScontrino}
-              disabled={stato === 'salvando'}
-              className="w-full py-4 rounded-[20px] font-medium text-white transition-all active:scale-[0.98] disabled:opacity-60 flex items-center justify-center gap-2"
-              style={{ background: T.primary, fontFamily: "'DM Sans', sans-serif", boxShadow: '0 8px 24px rgba(100,113,68,0.3)' }}>
+              disabled={stato === 'salvando' || !campiObbligatoriOk}
+              className="w-full py-4 rounded-[20px] font-medium text-white transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
+              style={{ background: campiObbligatoriOk ? T.primary : '#9CA3AF', fontFamily: "'DM Sans', sans-serif", boxShadow: campiObbligatoriOk ? '0 8px 24px rgba(100,113,68,0.3)' : 'none' }}>
               {stato === 'salvando'
                 ? <><Loader size={16} strokeWidth={1.5} className="animate-spin" /> Salvataggio...</>
                 : <><CheckCircle size={16} strokeWidth={1.5} /> Conferma e guadagna +{PUNTI_BASE_SCONTRINO}pt</>

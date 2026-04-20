@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, getDocs, query, where, orderBy, limit, addDoc, updateDoc, doc, serverTimestamp, increment, getDoc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, limit, addDoc, updateDoc, doc, serverTimestamp, increment, getDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { AuthProvider, useAuth, INSEGNE_DISPONIBILI } from './AuthContext';
 // statoVolantini viene ora passato come prop anche alla selezione supermercati
@@ -2687,306 +2687,13 @@ const CATEGORIE_COLORI = {
   casa_igiene:    { bg: '#F3F4F6', text: '#374151', label: 'Casa & Igiene' },
 };
 
-// ─── Modal Dettaglio Scontrino ────────────────────────────────────────────────
-// Bottom sheet aperto dal tap su uno scontrino in TabSpese.
-// Permette: visualizzare prodotti, modificarli inline, eliminare lo scontrino.
-
-const ModalDettaglioScontrino = ({ scontrino, onClose, onAggiornato, onEliminato }) => {
-  const { utente } = useAuth();
-  const [dati, setDati]                     = useState(() => JSON.parse(JSON.stringify(scontrino)));
-  const [prodottoInEdit, setProdottoInEdit] = useState(null);
-  const [salvando, setSalvando]             = useState(false);
-  const [confermaElimina, setConfermaElimina] = useState(false);
-  const [errore, setErrore]                 = useState('');
-
-  const prodottiSpecifici = (dati.prodotti || []).filter(p => !p.tipo_voce || p.tipo_voce === 'specifico');
-  const prodottiAggregati = (dati.prodotti || []).filter(p => p.tipo_voce === 'aggregato');
-
-  const formattaDataAcquisto = (str) => {
-    if (!str) return 'Data mancante';
-    const d = new Date(str + 'T12:00:00');
-    return isNaN(d) ? str : d.toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' });
-  };
-
-  const aggiornaProdotto = (idx, campo, valore) => {
-    setDati(prev => {
-      const nuovi = [...prev.prodotti];
-      nuovi[idx] = {
-        ...nuovi[idx],
-        [campo]: (campo === 'prezzo_unitario' || campo === 'quantita') ? parseFloat(valore) || 0 : valore
-      };
-      return { ...prev, prodotti: nuovi };
-    });
-  };
-
-  const rimuoviProdotto = (idx) => {
-    setDati(prev => ({ ...prev, prodotti: prev.prodotti.filter((_, i) => i !== idx) }));
-    setProdottoInEdit(null);
-  };
-
-  const salvaModifiche = async () => {
-    setSalvando(true);
-    setErrore('');
-    try {
-      const ref = doc(db, 'spese_personali', utente.uid, 'scontrini', scontrino.id);
-      await updateDoc(ref, {
-        insegna:          dati.insegna || '',
-        indirizzo:        dati.indirizzo || '',
-        data_acquisto:    dati.data_acquisto || '',
-        totale_scontrino: dati.totale_scontrino || 0,
-        prodotti:         dati.prodotti || [],
-      });
-      onAggiornato(dati);
-      onClose();
-    } catch (e) {
-      setErrore('Errore nel salvataggio. Riprova.');
-    } finally {
-      setSalvando(false);
-    }
-  };
-
-  const eliminaScontrino = async () => {
-    setSalvando(true);
-    try {
-      await deleteDoc(doc(db, 'spese_personali', utente.uid, 'scontrini', scontrino.id));
-      onEliminato(scontrino.id);
-      onClose();
-    } catch {
-      setErrore('Errore nell\'eliminazione. Riprova.');
-      setSalvando(false);
-    }
-  };
-
-  const totaleCalcolato = (dati.prodotti || []).reduce(
-    (acc, p) => acc + ((p.prezzo_unitario || 0) * (p.quantita || 1)), 0
-  );
-
-  const RigaProdotto = ({ p, idx, globalIdx }) => (
-    <div style={{ borderTop: idx > 0 ? `1px solid ${T.border}` : 'none' }}>
-      {prodottoInEdit === globalIdx ? (
-        // ── Editing inline ──
-        <div className="p-4 space-y-2.5" style={{ background: '#EEF2E4' }}>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-[10px] uppercase font-medium mb-1" style={{ color: T.primary }}>Nome</label>
-              <input type="text" value={p.nome_normalizzato || ''}
-                onChange={e => aggiornaProdotto(globalIdx, 'nome_normalizzato', e.target.value)}
-                className="w-full px-2.5 py-1.5 rounded-lg text-xs outline-none"
-                style={{ background: T.surface, border: `1px solid #C8D9A0`, color: T.textPrimary }} />
-            </div>
-            <div>
-              <label className="block text-[10px] uppercase font-medium mb-1" style={{ color: T.primary }}>Marca</label>
-              <input type="text" value={p.marca || ''}
-                onChange={e => aggiornaProdotto(globalIdx, 'marca', e.target.value)}
-                className="w-full px-2.5 py-1.5 rounded-lg text-xs outline-none"
-                style={{ background: T.surface, border: `1px solid #C8D9A0`, color: T.textPrimary }} />
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            <div>
-              <label className="block text-[10px] uppercase font-medium mb-1" style={{ color: T.primary }}>Prezzo (€)</label>
-              <input type="number" step="0.01" value={p.prezzo_unitario || ''}
-                onChange={e => aggiornaProdotto(globalIdx, 'prezzo_unitario', e.target.value)}
-                className="w-full px-2.5 py-1.5 rounded-lg text-xs outline-none"
-                style={{ background: T.surface, border: `1px solid #C8D9A0`, color: T.textPrimary }} />
-            </div>
-            <div>
-              <label className="block text-[10px] uppercase font-medium mb-1" style={{ color: T.primary }}>Qtà</label>
-              <input type="number" min="1" value={p.quantita || 1}
-                onChange={e => aggiornaProdotto(globalIdx, 'quantita', e.target.value)}
-                className="w-full px-2.5 py-1.5 rounded-lg text-xs outline-none"
-                style={{ background: T.surface, border: `1px solid #C8D9A0`, color: T.textPrimary }} />
-            </div>
-            <div>
-              <label className="block text-[10px] uppercase font-medium mb-1" style={{ color: T.primary }}>Formato</label>
-              <input type="text" value={p.grammatura || ''}
-                onChange={e => aggiornaProdotto(globalIdx, 'grammatura', e.target.value)}
-                className="w-full px-2.5 py-1.5 rounded-lg text-xs outline-none"
-                style={{ background: T.surface, border: `1px solid #C8D9A0`, color: T.textPrimary }} />
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={() => setProdottoInEdit(null)}
-              className="flex-1 py-2 rounded-xl text-xs font-medium text-white"
-              style={{ background: T.primary }}>✓ Salva</button>
-            <button onClick={() => rimuoviProdotto(globalIdx)}
-              className="px-3 py-2 rounded-xl text-xs font-medium"
-              style={{ background: '#FEE2E2', color: '#DC2626' }}>Rimuovi</button>
-          </div>
-        </div>
-      ) : (
-        // ── Riga compatta ──
-        <div className="flex items-center px-4 py-3 cursor-pointer active:bg-stone-50 transition-colors"
-          onClick={() => setProdottoInEdit(globalIdx)}>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm truncate" style={{ color: T.textPrimary }}>
-              {p.nome_normalizzato || p.nome_raw || '—'}
-              {p.marca ? <span style={{ color: T.textSec }}> · {p.marca}</span> : null}
-            </p>
-            <p className="text-xs mt-0.5" style={{ color: T.textSec }}>
-              {p.grammatura || ''}{p.quantita > 1 ? ` × ${p.quantita}` : ''}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 ml-3 shrink-0">
-            <span className="text-sm font-semibold" style={{ fontFamily: "'Lora', serif", color: T.textPrimary }}>
-              {formattaPrezzo((p.prezzo_unitario || 0) * (p.quantita || 1))}
-            </span>
-            <Pencil size={12} strokeWidth={1.5} style={{ color: T.textSec }} />
-          </div>
-        </div>
-      )}
-    </div>
-  );
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center"
-      style={{ background: 'rgba(44,48,38,0.55)', backdropFilter: 'blur(4px)' }}
-      onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="w-full max-w-md flex flex-col rounded-t-[28px] overflow-hidden"
-        style={{ background: T.bg, maxHeight: '90vh', boxShadow: '0 -8px 40px rgba(44,48,38,0.2)' }}>
-
-        {/* Handle + header */}
-        <div className="shrink-0" style={{ background: T.primary }}>
-          <div className="flex justify-center pt-3 pb-0">
-            <div className="w-10 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.3)' }} />
-          </div>
-          <div className="px-5 pt-3 pb-5">
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 style={{ fontFamily: "'Lora', serif", fontSize: '20px', fontWeight: 500, color: '#fff' }}>
-                  {dati.insegna || '—'}
-                </h3>
-                <p className="text-sm mt-0.5" style={{ color: 'rgba(255,255,255,0.75)' }}>
-                  {formattaDataAcquisto(dati.data_acquisto)}
-                  {dati.indirizzo ? ` · ${dati.indirizzo}` : ''}
-                </p>
-              </div>
-              <div className="text-right shrink-0 ml-4">
-                <p style={{ fontFamily: "'Lora', serif", fontSize: '22px', fontWeight: 500, color: '#fff' }}>
-                  {formattaPrezzo(totaleCalcolato)}
-                </p>
-                <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.6)' }}>
-                  {(dati.prodotti || []).length} prodotti
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Contenuto scrollabile */}
-        <div className="flex-1 overflow-y-auto hide-scrollbar">
-          <div className="px-4 py-4 space-y-3">
-
-            {/* Prodotti specifici */}
-            {prodottiSpecifici.length > 0 && (
-              <div className="rounded-[16px] overflow-hidden"
-                style={{ background: T.surface, border: `1px solid ${T.border}` }}>
-                <div className="px-4 py-2.5 flex items-center gap-2"
-                  style={{ background: '#EEF2E4', borderBottom: `1px solid #C8D9A0` }}>
-                  <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: T.primary }}>
-                    Prodotti ({prodottiSpecifici.length})
-                  </p>
-                </div>
-                {prodottiSpecifici.map((p, idx) => {
-                  const globalIdx = (dati.prodotti || []).findIndex(
-                    (pp, i) => pp === dati.prodotti[i] && (dati.prodotti || []).indexOf(pp) === i && prodottiSpecifici[idx] === pp
-                  );
-                  const gi = (dati.prodotti || []).indexOf(p);
-                  return <RigaProdotto key={gi} p={p} idx={idx} globalIdx={gi} />;
-                })}
-              </div>
-            )}
-
-            {/* Prodotti aggregati */}
-            {prodottiAggregati.length > 0 && (
-              <div className="rounded-[16px] overflow-hidden"
-                style={{ background: T.surface, border: `1px solid ${T.border}` }}>
-                <div className="px-4 py-2.5"
-                  style={{ background: T.bg, borderBottom: `1px solid ${T.border}` }}>
-                  <p className="text-xs font-medium uppercase tracking-wider" style={{ color: T.textSec }}>
-                    Voci generiche ({prodottiAggregati.length})
-                  </p>
-                </div>
-                {prodottiAggregati.map((p, idx) => {
-                  const gi = (dati.prodotti || []).indexOf(p);
-                  return <RigaProdotto key={gi} p={p} idx={idx} globalIdx={gi} />;
-                })}
-              </div>
-            )}
-
-            {(!dati.prodotti || dati.prodotti.length === 0) && (
-              <div className="rounded-[16px] p-6 text-center"
-                style={{ background: T.surface, border: `1px solid ${T.border}` }}>
-                <p className="text-sm" style={{ color: T.textSec }}>Nessun prodotto estratto</p>
-              </div>
-            )}
-
-            {/* Errore */}
-            {errore && (
-              <div className="rounded-2xl px-4 py-3 flex items-center gap-2.5"
-                style={{ background: '#FEF2F2', border: '1px solid #FECACA' }}>
-                <AlertTriangle size={14} strokeWidth={1.5} className="text-red-500 shrink-0" />
-                <p className="text-xs text-red-700">{errore}</p>
-              </div>
-            )}
-
-            {/* Bottoni azione */}
-            <button
-              onClick={salvaModifiche}
-              disabled={salvando}
-              className="w-full py-3.5 rounded-[18px] font-medium text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-60"
-              style={{ background: T.primary, fontFamily: "'DM Sans', sans-serif" }}>
-              {salvando ? <><Loader size={15} strokeWidth={1.5} className="animate-spin" /> Salvataggio...</>
-                        : <><CheckCircle size={15} strokeWidth={1.5} /> Salva modifiche</>}
-            </button>
-
-            {/* Elimina */}
-            {!confermaElimina ? (
-              <button
-                onClick={() => setConfermaElimina(true)}
-                className="w-full py-3 rounded-[18px] text-sm transition-all active:scale-[0.98]"
-                style={{ color: '#DC2626', border: '1px solid #FECACA', background: '#FEF2F2' }}>
-                Elimina scontrino dai miei dati
-              </button>
-            ) : (
-              <div className="rounded-[18px] p-4 space-y-3"
-                style={{ background: '#FEF2F2', border: '1px solid #FECACA' }}>
-                <p className="text-sm font-medium text-center" style={{ color: '#DC2626' }}>
-                  Eliminare questo scontrino?
-                </p>
-                <p className="text-xs text-center leading-relaxed" style={{ color: '#7F1D1D' }}>
-                  Verrà rimosso solo dal tuo registro personale. I dati già condivisi con la community restano anonimi e non vengono eliminati.
-                </p>
-                <div className="flex gap-2">
-                  <button onClick={() => setConfermaElimina(false)}
-                    className="flex-1 py-2.5 rounded-xl text-sm"
-                    style={{ border: `1px solid ${T.border}`, color: T.textSec, background: T.surface }}>
-                    Annulla
-                  </button>
-                  <button onClick={eliminaScontrino} disabled={salvando}
-                    className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white disabled:opacity-60"
-                    style={{ background: '#DC2626' }}>
-                    Sì, elimina
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className="h-4" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 const TabSpese = ({ scontriniReali = [], dataLoaded = false }) => {
   // Usa scontrini reali se il fetch è completato e ci sono dati.
   // Se non ancora caricato, non mostrare demo (evita flash).
   const isDemo = dataLoaded && scontriniReali.length === 0;
   const scontrini = (dataLoaded && scontriniReali.length > 0) ? scontriniReali : (isDemo ? MOCK_SCONTRINI : []);
 
-  const [scontrinoDettaglio, setScontrinoDettaglio] = useState(null);
+  const oggi = new Date();
   const meseCorrente = oggi.getMonth();
   const annoCorrente = oggi.getFullYear();
 
@@ -3300,33 +3007,26 @@ const TabSpese = ({ scontriniReali = [], dataLoaded = false }) => {
             <CreditCard size={16} strokeWidth={1.5} style={{ color: T.textSec }} />
           </div>
           {scontrini.slice(0, 6).map((s, i) => {
-            // Fix Invalid Date — data_acquisto può essere stringa 'YYYY-MM-DD' o null
-            const d = s.data_acquisto ? new Date(s.data_acquisto + 'T12:00:00') : null;
-            const dataFmt = d && !isNaN(d)
-              ? d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })
-              : 'Data mancante';
+            const d = new Date(s.data_acquisto);
+            const dataFmt = d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' });
             const nProd = s.prodotti?.length || 0;
             return (
               <div key={s.id}
-                onClick={() => !isDemo && setScontrinoDettaglio(s)}
-                className="flex items-center px-5 py-3.5 transition-colors cursor-pointer active:bg-stone-50"
+                className="flex items-center px-5 py-3.5 active:bg-stone-50 transition-colors"
                 style={{ borderTop: i > 0 ? `1px solid ${T.border}` : 'none' }}>
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mr-3"
                   style={{ background: '#EEF2E4' }}>
                   <Receipt size={16} strokeWidth={1.5} style={{ color: T.primary }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium" style={{ color: T.textPrimary }}>{s.insegna || '—'}</p>
+                  <p className="text-sm font-medium" style={{ color: T.textPrimary }}>{s.insegna}</p>
                   <p className="text-xs mt-0.5" style={{ color: T.textSec }}>
                     {dataFmt} · {nProd} prodott{nProd === 1 ? 'o' : 'i'}
                   </p>
                 </div>
-                <div className="flex items-center gap-2 ml-3 shrink-0">
-                  <p className="text-sm font-semibold" style={{ color: T.textPrimary, fontFamily: "'Lora', serif" }}>
-                    {formattaPrezzo(s.totale_scontrino)}
-                  </p>
-                  {!isDemo && <ChevronRight size={14} strokeWidth={1.5} style={{ color: T.textSec }} />}
-                </div>
+                <p className="text-sm font-semibold ml-3 shrink-0" style={{ color: T.textPrimary, fontFamily: "'Lora', serif" }}>
+                  {formattaPrezzo(s.totale_scontrino)}
+                </p>
               </div>
             );
           })}
@@ -3350,21 +3050,6 @@ const TabSpese = ({ scontriniReali = [], dataLoaded = false }) => {
         )}
 
       </div>
-
-      {/* Modal dettaglio scontrino */}
-      {scontrinoDettaglio && (
-        <ModalDettaglioScontrino
-          scontrino={scontrinoDettaglio}
-          onClose={() => setScontrinoDettaglio(null)}
-          onAggiornato={(datiAggiornati) => {
-            // Aggiorna l'array locale senza refetch
-            setScontrinoDettaglio(null);
-          }}
-          onEliminato={(id) => {
-            setScontrinoDettaglio(null);
-          }}
-        />
-      )}
     </div>
   );
 };

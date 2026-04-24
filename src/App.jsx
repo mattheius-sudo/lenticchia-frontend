@@ -2128,7 +2128,7 @@ const TabOfferte = ({ offerte, archivio = [] }) => {
       .slice(0, 6);
 
     return { urgenti, topCategorie, conTessera };
-  }, [offerteDedup, oggi]);
+  }, [offerteDedup]);
 
   // ── SFOGLIA: raggruppate per categoria o filtrate ─────────────────────────
   const offerteSfoglia = useMemo(() => {
@@ -4471,7 +4471,7 @@ function AppInterna() {
 
       if (cacheOfferte && cachStato) {
         // Cache valida — zero letture Firestore
-        const offerteValide = cacheOfferte.filter(o => !o.valido_fino || o.valido_fino >= oggi);
+        const offerteValide = cacheOfferte.filter(o => !o.valido_fino || o.valido_fino >= OGGI);
         if (offerteValide.length > 0) {
           setOfferte(offerteValide);
           setStatoVolantini(cachStato);
@@ -4491,7 +4491,7 @@ function AppInterna() {
 
         const offerteList = offerteSnapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter(o => !o.valido_fino || o.valido_fino >= oggi);
+          .filter(o => !o.valido_fino || o.valido_fino >= OGGI);
 
         // stato_volantini include ora: insegna, tipo, sedi, valido_dal/fino, n_prodotti
         const statoList = statoSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));

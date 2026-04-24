@@ -248,6 +248,18 @@ const getDomani = () => { const t = new Date(); t.setDate(t.getDate() + 1); retu
 const calcGiorniRimanenti = (d) => Math.ceil((new Date(d) - new Date(getOggi())) / 86400000);
 const formattaPrezzo = (p) => new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(p);
 
+// Costanti di data — calcolate una volta sola al caricamento del modulo
+// (evita di richiamare getOggi()/getDomani() in ogni componente/render)
+const OGGI   = getOggi();
+const DOMANI = getDomani();
+
+// Helper budget — evita la duplicazione delle IIFE nel JSX del Verdetto Spesa
+const calcolaBudgetDiff = (totalePrezzo, budgetSalvato) => {
+  if (!budgetSalvato) return null;
+  const diff = totalePrezzo - budgetSalvato;
+  return { diff, dentro: diff <= 0, perc: Math.abs(Math.round((diff / budgetSalvato) * 100)) };
+};
+
 const LIVELLI = [
   { nome: 'Osservatore', min: 0,    colore: 'bg-stone-100 text-stone-600' },
   { nome: 'Esploratore', min: 50,   colore: 'bg-blue-50 text-blue-700 border border-blue-200' },
@@ -396,10 +408,22 @@ const verificaExif = async (file) => {
 };
 
 const ProductCard = ({ offerta, storico = null, archivio = [], index = 0, segnalati, segnala }) => {
-  const oggi = getOggi();
-  const domani = getDomani();
-  const isScadenzaOggi = offerta.valido_fino === oggi;
-  const isScadenzaDomani = offerta.valido_fino === domani;
+  const isScadenzaOggi = offerta.valido_fino === OGGI;
+  const isScadenzaDomani = offerta.valido_fino === DOMANI;
+
+  // Sparkline — pre-calcolata fuori dal JSX per leggibilità
+  const sparkline = (() => {
+    if (!archivio?.length) return null;
+    const storici = archivio
+      .filter(a => a.insegna === offerta.insegna && a.nome?.toLowerCase() === offerta.nome?.toLowerCase() && a.prezzo)
+      .sort((a, b) => (a.valido_fino || '').localeCompare(b.valido_fino || '')).slice(-6);
+    if (storici.length < 2) return null;
+    const prezzi = [...storici.map(s => s.prezzo), offerta.prezzo];
+    const min = Math.min(...prezzi), max = Math.max(...prezzi), range = max - min || 1;
+    const W = 72, H = 20;
+    const pts = prezzi.map((p, i) => `${(i / (prezzi.length - 1)) * W},${H - ((p - min) / range) * (H - 4) - 2}`).join(' ');
+    return { prezzi, pts, trend: prezzi[prezzi.length - 1] <= prezzi[0], W, H, min, range };
+  })();
 
   return (
     <div
@@ -442,30 +466,19 @@ const ProductCard = ({ offerta, storico = null, archivio = [], index = 0, segnal
       </div>
 
       {/* Sparkline storico prezzi */}
-      {archivio && (() => {
-        const storici = archivio
-          .filter(a => a.insegna === offerta.insegna && a.nome?.toLowerCase() === offerta.nome?.toLowerCase() && a.prezzo)
-          .sort((a, b) => (a.valido_fino || '').localeCompare(b.valido_fino || '')).slice(-6);
-        if (storici.length < 2) return null;
-        const prezzi = [...storici.map(s => s.prezzo), offerta.prezzo];
-        const min = Math.min(...prezzi), max = Math.max(...prezzi), range = max - min || 1;
-        const W = 72, H = 20;
-        const pts = prezzi.map((p, i) => `${(i / (prezzi.length - 1)) * W},${H - ((p - min) / range) * (H - 4) - 2}`).join(' ');
-        const trend = prezzi[prezzi.length - 1] <= prezzi[0];
-        return (
-          <div className="flex items-center gap-2 pt-1">
-            <svg width={W} height={H} className="overflow-visible">
-              <polyline fill="none" stroke={trend ? T.primary : '#dc2626'} strokeWidth="1.5" points={pts} />
-              {prezzi.map((p, i) => (
-                <circle key={i} cx={(i / (prezzi.length - 1)) * W} cy={H - ((p - min) / range) * (H - 4) - 2} r="2" fill={trend ? T.primary : '#dc2626'} />
-              ))}
-            </svg>
-            <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: T.textSec }}>
-              {storici.length + 1} sett.
-            </span>
-          </div>
-        );
-      })()}
+      {sparkline && (
+        <div className="flex items-center gap-2 pt-1">
+          <svg width={sparkline.W} height={sparkline.H} className="overflow-visible">
+            <polyline fill="none" stroke={sparkline.trend ? T.primary : '#dc2626'} strokeWidth="1.5" points={sparkline.pts} />
+            {sparkline.prezzi.map((p, i) => (
+              <circle key={i} cx={(i / (sparkline.prezzi.length - 1)) * sparkline.W} cy={sparkline.H - ((p - sparkline.min) / sparkline.range) * (sparkline.H - 4) - 2} r="2" fill={sparkline.trend ? T.primary : '#dc2626'} />
+            ))}
+          </svg>
+          <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: T.textSec }}>
+            {sparkline.prezzi.length - 1} sett.
+          </span>
+        </div>
+      )}
 
       {/* Badge footer */}
       <div className="flex flex-wrap items-center gap-2 pt-3" style={{ borderTop: `1px solid ${T.border}` }}>
@@ -1904,11 +1917,9 @@ const TabScontrino = () => {
 // ─── ProductCard Compatta con Trust Signals (Task 2+8) ───────────────────────
 
 const ProductCardCompatta = ({ offerta, index = 0, segnalati, segnala }) => {
-  const oggi = getOggi();
-  const domani = getDomani();
   const giorni = calcGiorniRimanenti(offerta.valido_fino);
-  const isScadenzaOggi = offerta.valido_fino === oggi;
-  const isScadenzaDomani = offerta.valido_fino === domani;
+  const isScadenzaOggi = offerta.valido_fino === OGGI;
+  const isScadenzaDomani = offerta.valido_fino === DOMANI;
   const isUrgente = giorni <= 2 && giorni >= 0;
 
   // Stato locale per conferma "visto in negozio"
@@ -2078,7 +2089,6 @@ const TabOfferte = ({ offerte, archivio = [] }) => {
   const [categoriaAttiva, setCategoriaAttiva] = useState(null);
   const [ordinamento, setOrdinamento] = useState('prezzo_asc');
   const [showOrdinamento, setShowOrdinamento] = useState(false);
-  const oggi = getOggi();
 
   // ── Store segnalazioni — un'unica istanza per tutto il tab ───────────────
   const { segnalati, segnala } = useSegnalazioniStore();
@@ -2092,15 +2102,14 @@ const TabOfferte = ({ offerte, archivio = [] }) => {
       const key = `${(o.nome||'').toLowerCase()}_${(o.marca||'').toLowerCase()}_${o.insegna}_${o.grammatura||''}`;
       if (!seen.has(key) || seen.get(key).prezzo > o.prezzo) seen.set(key, o);
     });
-    return [...seen.values()].filter(o => !o.valido_fino || o.valido_fino >= oggi);
-  }, [offerte, oggi]);
+    return [...seen.values()].filter(o => !o.valido_fino || o.valido_fino >= OGGI);
+  }, [offerte]);
 
   // ── HIGHLIGHTS: le migliori offerte curate ────────────────────────────────
   const highlights = useMemo(() => {
     // Sezione 1: in scadenza oggi o domani (urgenza)
-    const domani = getDomani();
     const urgenti = offerteDedup
-      .filter(o => o.valido_fino === oggi || o.valido_fino === domani)
+      .filter(o => o.valido_fino === OGGI || o.valido_fino === DOMANI)
       .sort((a, b) => a.prezzo - b.prezzo)
       .slice(0, 8);
 
@@ -2799,25 +2808,22 @@ const TabListaSpesa = ({ offerte, archivio = [] }) => {
             />
 
             {/* Suggerimento lista frequente — se c'è una lista simile nello storico */}
-            {(() => {
-              if (!listaText.trim() && storicoListe.length > 0) {
-                const top = storicoListe[0]; // già ordinato per frequenza
-                return (
-                  <div className="mt-3 flex items-center gap-2 p-3 rounded-2xl cursor-pointer active:scale-[0.99] transition-all"
-                    style={{ background: '#EEF2E4', border: `1px solid #C8D9A0` }}
-                    onClick={() => caricaLista(top)}>
-                    <span style={{ fontSize: '16px' }}>🔁</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold" style={{ color: T.primary }}>Riusa la lista più frequente</p>
-                      <p className="text-xs truncate mt-0.5" style={{ color: T.textSec }}>
-                        {top.items.slice(0, 4).join(', ')}{top.items.length > 4 ? '...' : ''}
-                      </p>
-                    </div>
-                    <span className="text-xs font-medium shrink-0" style={{ color: T.primary }}>{top.usata}×</span>
+            {!listaText.trim() && storicoListe.length > 0 && (() => {
+              const top = storicoListe[0];
+              return (
+                <div className="mt-3 flex items-center gap-2 p-3 rounded-2xl cursor-pointer active:scale-[0.99] transition-all"
+                  style={{ background: '#EEF2E4', border: `1px solid #C8D9A0` }}
+                  onClick={() => caricaLista(top)}>
+                  <span style={{ fontSize: '16px' }}>🔁</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold" style={{ color: T.primary }}>Riusa la lista più frequente</p>
+                    <p className="text-xs truncate mt-0.5" style={{ color: T.textSec }}>
+                      {top.items.slice(0, 4).join(', ')}{top.items.length > 4 ? '...' : ''}
+                    </p>
                   </div>
-                );
-              }
-              return null;
+                  <span className="text-xs font-medium shrink-0" style={{ color: T.primary }}>{top.usata}×</span>
+                </div>
+              );
             })()}
 
             <button
@@ -2892,17 +2898,16 @@ const TabListaSpesa = ({ offerte, archivio = [] }) => {
                   </div>
 
                   {/* Indicatore budget sul vincitore */}
-                  {budgetSalvato && (() => {
-                    const diff = risultato.vincitore.totalePrezzo - budgetSalvato;
-                    const dentro = diff <= 0;
-                    const perc = Math.abs(Math.round((diff / budgetSalvato) * 100));
+                  {(() => {
+                    const bd = calcolaBudgetDiff(risultato.vincitore.totalePrezzo, budgetSalvato);
+                    if (!bd) return null;
                     return (
                       <div className="mt-3 px-3 py-2.5 rounded-2xl flex items-center gap-2"
-                        style={{ background: dentro ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.2)' }}>
+                        style={{ background: bd.dentro ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.2)' }}>
                         <span className="text-sm font-medium text-white">
-                          {dentro
-                            ? `✓ Dentro al budget — risparmi il ${perc}%`
-                            : `⚠ Sfori il budget del ${perc}% (+${Math.abs(diff).toFixed(2)} €)`}
+                          {bd.dentro
+                            ? `✓ Dentro al budget — risparmi il ${bd.perc}%`
+                            : `⚠ Sfori il budget del ${bd.perc}% (+${Math.abs(bd.diff).toFixed(2)} €)`}
                         </span>
                       </div>
                     );
@@ -2924,21 +2929,21 @@ const TabListaSpesa = ({ offerte, archivio = [] }) => {
                           </div>
                           <div className="text-right">
                             <span className="text-sm font-medium" style={{ color: T.textPrimary }}>{formattaPrezzo(alt.totalePrezzo)}</span>
-                            {budgetSalvato && (() => {
-                              const diff = alt.totalePrezzo - budgetSalvato;
-                              const dentro = diff <= 0;
-                              return (
+                            {(() => {
+                              const bd = calcolaBudgetDiff(alt.totalePrezzo, budgetSalvato);
+                              if (bd) return (
                                 <span className="block text-xs font-semibold mt-0.5"
-                                  style={{ color: dentro ? T.primary : '#DC2626' }}>
-                                  {dentro ? '✓ budget' : `+${Math.abs(diff).toFixed(2)}€ sforo`}
+                                  style={{ color: bd.dentro ? T.primary : '#DC2626' }}>
+                                  {bd.dentro ? '✓ budget' : `+${Math.abs(bd.diff).toFixed(2)}€ sforo`}
                                 </span>
                               );
+                              if (alt.punteggio === risultato.vincitore.punteggio) return (
+                                <span className="block text-xs font-semibold mt-0.5" style={{ color: '#DC2626' }}>
+                                  + {formattaPrezzo(alt.totalePrezzo - risultato.vincitore.totalePrezzo)}
+                                </span>
+                              );
+                              return null;
                             })()}
-                            {!budgetSalvato && alt.punteggio === risultato.vincitore.punteggio && (
-                              <span className="block text-xs font-semibold mt-0.5" style={{ color: '#DC2626' }}>
-                                + {formattaPrezzo(alt.totalePrezzo - risultato.vincitore.totalePrezzo)}
-                              </span>
-                            )}
                           </div>
                         </div>
                       ))}

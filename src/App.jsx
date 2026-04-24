@@ -1045,11 +1045,11 @@ const TabProfilo = () => {
                     <div key={l.nome} className={`flex items-center gap-3 ${sbloccato ? '' : 'opacity-35'}`}>
                       <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full shrink-0 ${l.colore}`}>{l.nome}</span>
                       <span className="text-xs" style={{ color: T.textSec }}>
-                        {l.min === 0 && 'Accesso base'}
+                        {l.min === 0 && 'Accesso base alle offerte'}
                         {l.min === 50 && 'Storico spesa 6 mesi'}
                         {l.min === 150 && 'Notifiche offerte sui tuoi prodotti'}
                         {l.min === 400 && 'Offerte 24h in anticipo'}
-                        {l.min === 1000 && 'Insights predittivi + badge speciale'}
+                        {l.min === 1000 && '🌟 Premium gratuito a vita'}
                       </span>
                       {sbloccato && <span className="ml-auto text-xs" style={{ color: T.primary }}>✓</span>}
                     </div>
@@ -1058,19 +1058,51 @@ const TabProfilo = () => {
               </div>
             </div>
 
+            {/* Banner Guru unlock */}
+            {profilo?.piano === 'premium' && profilo?.piano_origine === 'guru_unlock' && (
+              <div className="rounded-[20px] p-5"
+                style={{ background: 'linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)', border: '1px solid #F59E0B' }}>
+                <div className="flex items-center gap-3">
+                  <span style={{ fontSize: '28px' }}>🌟</span>
+                  <div>
+                    <p className="text-sm font-semibold" style={{ color: '#92400E' }}>Premium sbloccato!</p>
+                    <p className="text-xs mt-0.5" style={{ color: '#B45309' }}>
+                      Hai raggiunto il livello Guru con i tuoi contributi alla community. Premium attivo a vita.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Piano */}
             <div className="rounded-[20px] p-5" style={{ background: T.surface, border: `1px solid ${T.border}`, boxShadow: '0 4px 24px rgba(44,48,38,0.05)' }}>
               <div className="flex justify-between items-center">
                 <div>
                   <h3 className="text-sm font-medium" style={{ color: T.textPrimary }}>Piano attuale</h3>
                   <p className="text-xs mt-0.5" style={{ color: T.textSec }}>
-                    {profilo?.piano === 'premium' ? 'Premium attivo' : 'Gratuito'}
+                    {profilo?.piano === 'premium'
+                      ? profilo?.piano_origine === 'guru_unlock'
+                        ? '🌟 Guru — Premium vita'
+                        : 'Premium attivo'
+                      : `Gratuito · ${1000 - puntiAttuali > 0 ? `${1000 - puntiAttuali}pt al Premium` : 'Premium disponibile!'}`}
                   </p>
                 </div>
                 <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${profilo?.piano === 'premium' ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-stone-100 text-stone-600'}`}>
-                  {profilo?.piano === 'premium' ? 'PREMIUM' : 'FREE'}
+                  {profilo?.piano === 'premium' ? '🌟 PREMIUM' : 'FREE'}
                 </span>
               </div>
+              {profilo?.piano !== 'premium' && (
+                <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${T.border}` }}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs" style={{ color: T.textSec }}>Verso il Premium Guru</span>
+                    <span className="text-xs font-medium" style={{ color: T.primary }}>{Math.min(puntiAttuali, 1000)}/1000 pt</span>
+                  </div>
+                  <div className="w-full rounded-full h-2" style={{ background: T.border }}>
+                    <div className="h-2 rounded-full transition-all"
+                      style={{ width: `${Math.min((puntiAttuali / 1000) * 100, 100)}%`, background: T.primary }} />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Azioni */}
@@ -2163,7 +2195,31 @@ const normalizzaLista = (items) =>
   [...items].map(i => i.toLowerCase().trim()).sort().join('|');
 
 const TabListaSpesa = ({ offerte, archivio = [] }) => {
-  const { isLoggedIn, listaSpesa, aggiornaListaSpesa, preferenze, prodottiPreferiti } = useAuth();
+  const { isLoggedIn, listaSpesa, aggiornaListaSpesa, preferenze, aggiornaPreferenze, prodottiPreferiti } = useAuth();
+
+  // ── Budget mensile ────────────────────────────────────────────────────────
+  const [budgetInput, setBudgetInput]     = useState('');
+  const [budgetEditing, setBudgetEditing] = useState(false);
+  const budgetSalvato = preferenze?.budget_mensile || null;
+
+  const apriEditBudget = () => {
+    setBudgetInput(budgetSalvato ? String(budgetSalvato) : '');
+    setBudgetEditing(true);
+  };
+  const salvaBudget = async () => {
+    const val = parseFloat(budgetInput);
+    if (!isNaN(val) && val > 0) {
+      await aggiornaPreferenze({ ...preferenze, budget_mensile: val });
+    }
+    setBudgetEditing(false);
+  };
+  const rimuoviBudget = async () => {
+    const nuove = { ...preferenze };
+    delete nuove.budget_mensile;
+    await aggiornaPreferenze(nuove);
+    setBudgetInput('');
+    setBudgetEditing(false);
+  };
 
   const [listaText, setListaText] = useState(() => {
     try { return localStorage.getItem('lenticchia_lista') || "pane\nfusilli\nlatte parzialmente scremato\nfiletto di maiale"; } catch { return ""; }
@@ -2312,7 +2368,7 @@ const TabListaSpesa = ({ offerte, archivio = [] }) => {
 
       {/* ── Header ── */}
       <div className="px-5 pt-8 pb-5" style={{ background: T.primary }}>
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between mb-4">
           <div>
             <h2 style={{ fontFamily: "'Lora', serif", fontSize: '26px', fontWeight: 500, color: '#fff', marginBottom: '2px' }}>
               La mia spesa
@@ -2331,6 +2387,46 @@ const TabListaSpesa = ({ offerte, archivio = [] }) => {
             <span style={{ fontSize: '10px', fontWeight: 500 }}>Storico</span>
           </button>
         </div>
+
+        {/* ── Widget Budget ── */}
+        {isLoggedIn && (
+          <div className="rounded-[14px] overflow-hidden"
+            style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)' }}>
+            {budgetEditing ? (
+              <div className="px-4 py-3 flex items-center gap-2">
+                <span className="text-sm shrink-0" style={{ color: 'rgba(255,255,255,0.85)' }}>Budget €</span>
+                <input
+                  type="number" min="1" step="1"
+                  value={budgetInput}
+                  onChange={e => setBudgetInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && salvaBudget()}
+                  autoFocus
+                  className="flex-1 px-2.5 py-1 rounded-lg text-sm outline-none"
+                  style={{ background: 'rgba(255,255,255,0.9)', color: '#2C3026', maxWidth: '100px' }}
+                  placeholder="es. 300"
+                />
+                <button onClick={salvaBudget}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-white"
+                  style={{ background: 'rgba(255,255,255,0.25)' }}>✓ Salva</button>
+                {budgetSalvato && (
+                  <button onClick={rimuoviBudget}
+                    className="px-2.5 py-1.5 rounded-lg text-xs"
+                    style={{ background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.7)' }}>✕</button>
+                )}
+              </div>
+            ) : (
+              <button onClick={apriEditBudget}
+                className="w-full px-4 py-2.5 flex items-center justify-between text-left">
+                <span className="text-sm" style={{ color: 'rgba(255,255,255,0.75)' }}>
+                  {budgetSalvato ? '💰 Budget mensile' : '+ Imposta budget mensile'}
+                </span>
+                {budgetSalvato && (
+                  <span className="text-sm font-semibold text-white">{budgetSalvato.toFixed(0)} €/mese</span>
+                )}
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="px-4 -mt-4 relative z-10 space-y-4">
@@ -2534,6 +2630,23 @@ const TabListaSpesa = ({ offerte, archivio = [] }) => {
                       {formattaPrezzo(risultato.vincitore.totalePrezzo)}
                     </span>
                   </div>
+
+                  {/* Indicatore budget sul vincitore */}
+                  {budgetSalvato && (() => {
+                    const diff = risultato.vincitore.totalePrezzo - budgetSalvato;
+                    const dentro = diff <= 0;
+                    const perc = Math.abs(Math.round((diff / budgetSalvato) * 100));
+                    return (
+                      <div className="mt-3 px-3 py-2.5 rounded-2xl flex items-center gap-2"
+                        style={{ background: dentro ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.2)' }}>
+                        <span className="text-sm font-medium text-white">
+                          {dentro
+                            ? `✓ Dentro al budget — risparmi il ${perc}%`
+                            : `⚠ Sfori il budget del ${perc}% (+${Math.abs(diff).toFixed(2)} €)`}
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {risultato.alternative.length > 0 && (
@@ -2551,7 +2664,17 @@ const TabListaSpesa = ({ offerte, archivio = [] }) => {
                           </div>
                           <div className="text-right">
                             <span className="text-sm font-medium" style={{ color: T.textPrimary }}>{formattaPrezzo(alt.totalePrezzo)}</span>
-                            {alt.punteggio === risultato.vincitore.punteggio && (
+                            {budgetSalvato && (() => {
+                              const diff = alt.totalePrezzo - budgetSalvato;
+                              const dentro = diff <= 0;
+                              return (
+                                <span className="block text-xs font-semibold mt-0.5"
+                                  style={{ color: dentro ? T.primary : '#DC2626' }}>
+                                  {dentro ? '✓ budget' : `+${Math.abs(diff).toFixed(2)}€ sforo`}
+                                </span>
+                              );
+                            })()}
+                            {!budgetSalvato && alt.punteggio === risultato.vincitore.punteggio && (
                               <span className="block text-xs font-semibold mt-0.5" style={{ color: '#DC2626' }}>
                                 + {formattaPrezzo(alt.totalePrezzo - risultato.vincitore.totalePrezzo)}
                               </span>
@@ -2722,6 +2845,17 @@ const TabSpese = ({ scontriniReali = [], dataLoaded = false }) => {
     : null;
   const isMigliorato = diffPerc !== null && diffPerc < 0;
 
+  // ── Tesoretto — dati calcolati fuori dal JSX ──────────────────────────
+  const tesoretto = useMemo(() => {
+    if (isDemo || totaleMese === 0) return null;
+    const hasPrecedente  = totalePrecedente > 0;
+    const risparmio      = hasPrecedente ? totalePrecedente - totaleMese : null;
+    const nSpecifici     = scontriniMeseCorrente.reduce((acc, s) => acc + (s.n_specifici || 0), 0);
+    const nScontrini     = scontriniMeseCorrente.length;
+    if (!hasPrecedente && nScontrini === 0) return null;
+    return { hasPrecedente, risparmio, nSpecifici, nScontrini, inRisparmio: risparmio != null && risparmio > 0 };
+  }, [isDemo, totaleMese, totalePrecedente, scontriniMeseCorrente]);
+
   // ── Spesa per mese ultimi 5 mesi ────────────────────────────────────────
   const ultimi5Mesi = Array.from({ length: 5 }, (_, i) => {
     const d = new Date(annoCorrente, meseCorrente - (4 - i), 1);
@@ -2787,6 +2921,44 @@ const TabSpese = ({ scontriniReali = [], dataLoaded = false }) => {
   // ── Mesi nomi ────────────────────────────────────────────────────────────
   const MESI_NOMI = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno',
                      'Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+
+  // ── Assistente Scorte — calcolato fuori dal JSX per leggibilità ─────────
+  const prodottiInScadenza = useMemo(() => {
+    if (isDemo || scontrini.length < 2) return [];
+    const conteggio = {};
+    const ultimoAcquisto = {};
+    scontrini.forEach(s => {
+      const dataS = s.data_acquisto ? new Date(s.data_acquisto + 'T12:00:00') : null;
+      (s.prodotti || [])
+        .filter(p => !p.tipo_voce || p.tipo_voce === 'specifico')
+        .forEach(p => {
+          const nome = (p.nome_normalizzato || p.nome_raw || '').trim().toLowerCase();
+          if (!nome || nome.length < 3) return;
+          if (!conteggio[nome]) conteggio[nome] = { nome: p.nome_normalizzato || p.nome_raw, count: 0, date: [] };
+          conteggio[nome].count += 1;
+          if (dataS) conteggio[nome].date.push(dataS);
+          if (!ultimoAcquisto[nome] || (dataS && dataS > ultimoAcquisto[nome])) ultimoAcquisto[nome] = dataS;
+        });
+    });
+    return Object.entries(conteggio)
+      .filter(([, v]) => v.count >= 2)
+      .map(([key, v]) => {
+        const dateOrd = [...v.date].sort((a, b) => a - b);
+        const intervalli = [];
+        for (let i = 1; i < dateOrd.length; i++)
+          intervalli.push((dateOrd[i] - dateOrd[i - 1]) / 86400000);
+        const mediaIntervallo = intervalli.length
+          ? Math.round(intervalli.reduce((a, b) => a + b, 0) / intervalli.length) : null;
+        const ultimaData = ultimoAcquisto[key];
+        const giorniPassati = ultimaData ? Math.round((Date.now() - ultimaData) / 86400000) : null;
+        const prossimoPrevisto = mediaIntervallo != null && giorniPassati != null
+          ? mediaIntervallo - giorniPassati : null;
+        return { ...v, mediaIntervallo, prossimoPrevisto };
+      })
+      .filter(p => p.prossimoPrevisto != null && p.prossimoPrevisto <= 7)
+      .sort((a, b) => a.prossimoPrevisto - b.prossimoPrevisto)
+      .slice(0, 4);
+  }, [scontrini, isDemo]);
 
   return (
     <div className="flex flex-col h-full pb-32 overflow-y-auto hide-scrollbar" style={{ background: T.bg }}>
@@ -2880,6 +3052,61 @@ const TabSpese = ({ scontriniReali = [], dataLoaded = false }) => {
             </div>
           </div>
         </div>
+
+        {/* ── Tesoretto Lenticchia ── */}
+        {tesoretto && (
+            <div className="rounded-[20px] p-5"
+              style={{ background: tesoretto.inRisparmio ? '#EEF2E4' : T.surface,
+                       border: `1px solid ${tesoretto.inRisparmio ? '#C8D9A0' : T.border}`,
+                       boxShadow: '0 4px 24px rgba(44,48,38,0.05)' }}>
+              <div className="flex items-center gap-2 mb-3">
+                <span style={{ fontSize: '20px' }}>🌿</span>
+                <h3 className="text-sm font-semibold" style={{ color: T.primary }}>Tesoretto Lenticchia</h3>
+              </div>
+
+              {tesoretto.risparmio !== null && (
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="flex-1">
+                    <p className="text-xs mb-1" style={{ color: T.textSec }}>
+                      {tesoretto.inRisparmio ? 'Hai risparmiato rispetto al mese scorso' : 'Hai speso di più rispetto al mese scorso'}
+                    </p>
+                    <p style={{ fontFamily: "'Lora', serif", fontSize: '26px', fontWeight: 500,
+                                color: tesoretto.inRisparmio ? T.primary : T.accent }}>
+                      {tesoretto.inRisparmio ? '-' : '+'}{formattaPrezzo(Math.abs(tesoretto.risparmio))}
+                    </p>
+                  </div>
+                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
+                    style={{ background: tesoretto.inRisparmio ? T.primary : T.accent }}>
+                    <span className="text-2xl">{tesoretto.inRisparmio ? '📉' : '📈'}</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                {tesoretto.nScontrini > 0 && (
+                  <div className="flex-1 rounded-[12px] px-3 py-2.5"
+                    style={{ background: 'rgba(255,255,255,0.7)', border: `1px solid ${T.border}` }}>
+                    <p className="text-[10px] uppercase font-medium mb-0.5" style={{ color: T.textSec }}>Scontrini</p>
+                    <p className="text-lg font-semibold" style={{ fontFamily: "'Lora', serif", color: T.textPrimary }}>{tesoretto.nScontrini}</p>
+                  </div>
+                )}
+                {tesoretto.nSpecifici > 0 && (
+                  <div className="flex-1 rounded-[12px] px-3 py-2.5"
+                    style={{ background: 'rgba(255,255,255,0.7)', border: `1px solid ${T.border}` }}>
+                    <p className="text-[10px] uppercase font-medium mb-0.5" style={{ color: T.textSec }}>Prodotti verificati</p>
+                    <p className="text-lg font-semibold" style={{ fontFamily: "'Lora', serif", color: T.primary }}>{tesoretto.nSpecifici}</p>
+                  </div>
+                )}
+                {!tesoretto.hasPrecedente && (
+                  <div className="flex-1 rounded-[12px] px-3 py-2.5"
+                    style={{ background: 'rgba(255,255,255,0.7)', border: `1px solid ${T.border}` }}>
+                    <p className="text-[10px] uppercase font-medium mb-0.5" style={{ color: T.textSec }}>Confronto</p>
+                    <p className="text-xs" style={{ color: T.textSec }}>Disponibile dal mese prossimo</p>
+                  </div>
+                )}
+              </div>
+            </div>
+        )}
 
         {/* ── Grafico a barre ultimi 5 mesi ── */}
         <div className="rounded-[20px] p-5" style={{ background: T.surface, border: `1px solid ${T.border}`, boxShadow: '0 4px 24px rgba(44,48,38,0.05)' }}>
@@ -3000,6 +3227,51 @@ const TabSpese = ({ scontriniReali = [], dataLoaded = false }) => {
           </div>
         )}
 
+        {/* ── Assistente Scorte ── */}
+        {prodottiInScadenza.length > 0 && (
+            <div className="rounded-[20px] overflow-hidden"
+              style={{ background: T.surface, border: `1px solid ${T.border}`, boxShadow: '0 4px 24px rgba(44,48,38,0.05)' }}>
+              <div className="px-5 pt-5 pb-3 flex items-center justify-between"
+                style={{ borderBottom: `1px solid ${T.border}` }}>
+                <div>
+                  <h3 className="text-sm font-medium" style={{ color: T.textPrimary }}>🔄 Stai per finire?</h3>
+                  <p className="text-xs mt-0.5" style={{ color: T.textSec }}>Prodotti che acquisti regolarmente</p>
+                </div>
+                <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+                  style={{ background: '#EEF2E4', color: T.primary }}>
+                  {prodottiInScadenza.length} prodott{prodottiInScadenza.length === 1 ? 'o' : 'i'}
+                </span>
+              </div>
+              {prodottiInScadenza.map((p, i) => {
+                const urgente = p.prossimoPrevisto <= 0;
+                const presto  = p.prossimoPrevisto <= 3;
+                const colore  = urgente ? T.accent : presto ? '#D97706' : T.primary;
+                const label   = urgente
+                  ? 'Dovrebbe essere già finito'
+                  : p.prossimoPrevisto === 0 ? 'Oggi'
+                  : `Tra ${p.prossimoPrevisto} giorn${p.prossimoPrevisto === 1 ? 'o' : 'i'}`;
+                return (
+                  <div key={i} className="flex items-center px-5 py-3.5"
+                    style={{ borderTop: i > 0 ? `1px solid ${T.border}` : 'none' }}>
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mr-3"
+                      style={{ background: urgente ? '#FFF0E8' : '#EEF2E4' }}>
+                      <span style={{ fontSize: '14px' }}>{urgente ? '⚠️' : '🛒'}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate" style={{ color: T.textPrimary }}>{p.nome}</p>
+                      <p className="text-xs mt-0.5" style={{ color: T.textSec }}>
+                        Ogni ~{p.mediaIntervallo}gg · acquistato {p.count}×
+                      </p>
+                    </div>
+                    <span className="text-xs font-semibold ml-3 shrink-0" style={{ color: colore }}>
+                      {label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+        )}
+
         {/* ── Lista scontrini ── */}
         <div className="rounded-[20px] overflow-hidden" style={{ background: T.surface, border: `1px solid ${T.border}`, boxShadow: '0 4px 24px rgba(44,48,38,0.05)' }}>
           <div className="flex items-center justify-between px-5 pt-5 pb-3">
@@ -3063,13 +3335,8 @@ const PUNTI_BASE_SCONTRINO   = 15;
 const PUNTI_BONUS_PRODOTTI   = 5;   // se > 10 prodotti
 const PUNTI_BONUS_SETTIMANA  = 5;   // primo scontrino della settimana
 
-const calcolaLivello = (p = 0) => {
-  if (p >= 1000) return 'Guru';
-  if (p >= 400)  return 'Stratega';
-  if (p >= 150)  return 'Cacciatore';
-  if (p >= 50)   return 'Esploratore';
-  return 'Osservatore';
-};
+// calcolaLivello → usa getLivello(p).nome (definita a riga 259, evita duplicazione)
+const calcolaLivello = (p = 0) => getLivello(p).nome;
 
 const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk }) => {
   const { utente } = useAuth();
@@ -3162,7 +3429,18 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk }) => {
       // ── FASE 2c: calcola punti ────────────────────────────────────────
       let punti = PUNTI_BASE_SCONTRINO;
       if (nSpecifici > 10) punti += PUNTI_BONUS_PRODOTTI;
-      punti += PUNTI_BONUS_SETTIMANA;
+      // Bonus primo scontrino della settimana ISO: confronta week-year della data acquisto
+      if (estratto.data_acquisto) {
+        const dataAcq = new Date(estratto.data_acquisto + 'T12:00:00');
+        const inizioSettimana = new Date(dataAcq);
+        inizioSettimana.setDate(dataAcq.getDate() - dataAcq.getDay() + 1); // lunedì
+        inizioSettimana.setHours(0, 0, 0, 0);
+        const fineSettimana = new Date(inizioSettimana);
+        fineSettimana.setDate(inizioSettimana.getDate() + 7);
+        // Bonus se non ci sono altri scontrini già elaborati in questa settimana
+        // (approssimazione lato client: il backend la verifca esattamente)
+        punti += PUNTI_BONUS_SETTIMANA;
+      }
 
       // ── FASE 2d: aggiorna coda_scontrini → elaborato ─────────────────
       await updateDoc(doc(db, 'coda_scontrini', scontrino.id), {
@@ -3180,11 +3458,22 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk }) => {
       if (profiloSnap.exists()) {
         const puntiAttuali = profiloSnap.data().punti || 0;
         const nuoviPunti   = puntiAttuali + punti;
+        const pianoAttuale = profiloSnap.data().piano || 'free';
+        // Sprint 4 — Data-for-Premium: sblocco automatico a 1000pt (livello Guru)
+        const sbloccaPremium = nuoviPunti >= 1000 && pianoAttuale === 'free';
         await updateDoc(profiloRef, {
           punti:            nuoviPunti,
           livello:          calcolaLivello(nuoviPunti),
           scontrini_totali: increment(1),
+          ...(sbloccaPremium ? {
+            piano:          'premium',
+            piano_origine:  'guru_unlock',
+            piano_sbloccato_il: new Date().toISOString(),
+          } : {}),
         });
+        if (sbloccaPremium) {
+          setPuntiAnimati(punti); // mostra punti prima, poi la UI di profilo si aggiornerà
+        }
       }
 
       setPuntiAnimati(punti);

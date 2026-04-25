@@ -1,0 +1,58 @@
+{
+  "name": "Lenticchia — Spesa intelligente",
+  "short_name": "Lenticchia",
+  "description": "Confronta le offerte dei supermercati a Roma e Mantova. Risparmia ogni settimana.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F9F8F4",
+  "theme_color": "#647144",
+  "lang": "it",
+  "categories": ["shopping", "food", "utilities"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Offerte della settimana",
+      "short_name": "Offerte",
+      "description": "Vedi le migliori offerte",
+      "url": "/?tab=offerte",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Lista della spesa",
+      "short_name": "Lista",
+      "description": "Gestisci la tua lista",
+      "url": "/?tab=lista",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/offerte.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Offerte della settimana"
+    }
+  ]
+}

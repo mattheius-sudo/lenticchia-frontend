@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lenticchia — Offline</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'DM Sans', system-ui, sans-serif;
+      background: #F9F8F4;
+      color: #2C3026;
+      min-height: 100svh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      text-align: center;
+    }
+    .icon {
+      font-size: 4rem;
+      margin-bottom: 1.5rem;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.08); }
+    }
+    h1 {
+      font-family: 'Lora', Georgia, serif;
+      font-size: 1.5rem;
+      font-weight: 500;
+      margin-bottom: 0.75rem;
+      color: #2C3026;
+    }
+    p {
+      font-size: 0.9rem;
+      color: #6B7280;
+      line-height: 1.6;
+      max-width: 280px;
+      margin-bottom: 2rem;
+    }
+    button {
+      background: #647144;
+      color: white;
+      border: none;
+      border-radius: 18px;
+      padding: 0.9rem 2rem;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    button:active { opacity: 0.8; }
+    .hint {
+      margin-top: 1.5rem;
+      font-size: 0.75rem;
+      color: #9CA3AF;
+    }
+  </style>
+</head>
+<body>
+  <div class="icon">🌿</div>
+  <h1>Sei offline</h1>
+  <p>
+    Nessuna connessione disponibile. Alcune funzioni come le offerte aggiornate
+    e il caricamento scontrini richiedono internet.
+  </p>
+  <button onclick="window.location.reload()">Riprova</button>
+  <p class="hint">La lista della spesa salvata è ancora disponibile</p>
+</body>
+</html>

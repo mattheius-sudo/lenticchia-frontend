@@ -38,7 +38,8 @@ import {
   ClipboardCheck,
   Pencil,
   AlertTriangle,
-  Flag
+  Flag,
+  MapPin
 } from 'lucide-react';
 
 // ─── Font import (Lora + DM Sans via Google Fonts) ───────────────────────────

@@ -607,18 +607,18 @@ const ModalEditOfferta = ({ offerta, onChiudi }) => {
       style={{ background: 'rgba(0,0,0,0.5)' }}
       onClick={onChiudi}>
 
-      {/* Bottom sheet */}
-      <div className="rounded-t-[28px] flex flex-col max-h-[90vh]"
-        style={{ background: T.surface }}
+      {/* Bottom sheet — dvh per tastiera iOS */}
+      <div className="rounded-t-[28px] flex flex-col"
+        style={{ background: T.surface, maxHeight: '92dvh' }}
         onClick={e => e.stopPropagation()}>
 
         {/* Handle */}
-        <div className="flex justify-center pt-3 pb-1">
+        <div className="flex justify-center pt-3 pb-1 shrink-0">
           <div className="w-10 h-1 rounded-full" style={{ background: T.border }} />
         </div>
 
-        {/* Header */}
-        <div className="px-5 py-4 flex items-center gap-3"
+        {/* Header fisso */}
+        <div className="px-5 py-3 flex items-center gap-3 shrink-0"
           style={{ borderBottom: `1px solid ${T.border}` }}>
           <div className="flex-1 min-w-0">
             <p className="text-xs uppercase font-semibold tracking-wider mb-0.5"
@@ -630,54 +630,59 @@ const ModalEditOfferta = ({ offerta, onChiudi }) => {
             </p>
           </div>
           <button onClick={onChiudi}
-            className="w-8 h-8 rounded-full flex items-center justify-center"
+            className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
             style={{ background: T.bg }}>
             <X size={16} strokeWidth={2} style={{ color: T.textSec }} />
           </button>
         </div>
 
-        {/* Info ruolo */}
-        {!isGuru && (
-          <div className="mx-5 mt-4 px-4 py-3 rounded-[14px]"
-            style={{ background: '#EEF2E4' }}>
-            <p className="text-xs" style={{ color: T.primary }}>
-              💡 La tua correzione sarà visibile dopo l'approvazione di 1 Guru o 3 utenti della stessa città.
-            </p>
-          </div>
-        )}
-
-        {/* Proposta esistente — banner voto */}
-        {(proposta || vistaVoto) && proposta?.stato === 'pending' && (
-          <div className="mx-5 mt-4 rounded-[14px] p-4"
-            style={{ background: '#FEF3C7', border: '1px solid #FDE68A' }}>
-            <p className="text-xs font-semibold mb-1" style={{ color: '#92400E' }}>
-              📋 Proposta in attesa
-            </p>
-            <p className="text-[11px] mb-2" style={{ color: '#A16207' }}>
-              {proposta.voti_guru?.length || 0} Guru · {proposta.voti_utenti?.length || 0} utenti — serve 1 Guru o 3 utenti
-            </p>
-            {!haVotato ? (
-              <button onClick={async () => { try { await votaProposta(); } catch {} }}
-                className="w-full py-2 rounded-xl text-xs font-semibold"
-                style={{ background: '#92400E', color: '#fff' }}>
-                ✓ Confermo — la correzione è giusta
-              </button>
-            ) : (
-              <p className="text-xs text-center" style={{ color: '#92400E' }}>✓ Hai già votato</p>
-            )}
-          </div>
-        )}
-
-        {/* Form campi editabili */}
+        {/* Unico scroll — contiene tutto, bottone salva in fondo */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+
+          {/* Info ruolo */}
+          {!isGuru && (
+            <div className="px-4 py-3 rounded-[14px]"
+              style={{ background: '#EEF2E4' }}>
+              <p className="text-xs" style={{ color: T.primary }}>
+                💡 La tua correzione sarà visibile dopo l'approvazione di 1 Guru o 3 utenti della stessa città.
+              </p>
+            </div>
+          )}
+
+          {/* Proposta in attesa */}
+          {(proposta || vistaVoto) && proposta?.stato === 'pending' && (
+            <div className="rounded-[14px] p-4"
+              style={{ background: '#FEF3C7', border: '1px solid #FDE68A' }}>
+              <p className="text-xs font-semibold mb-1" style={{ color: '#92400E' }}>
+                📋 Proposta in attesa
+              </p>
+              <p className="text-[11px] mb-2" style={{ color: '#A16207' }}>
+                {proposta.voti_guru?.length || 0} Guru · {proposta.voti_utenti?.length || 0} utenti — serve 1 Guru o 3 utenti
+              </p>
+              {!haVotato ? (
+                <button onClick={async () => { try { await votaProposta(); } catch {} }}
+                  className="w-full py-2 rounded-xl text-xs font-semibold"
+                  style={{ background: '#92400E', color: '#fff' }}>
+                  ✓ Confermo — la correzione è giusta
+                </button>
+              ) : (
+                <p className="text-xs text-center" style={{ color: '#92400E' }}>✓ Hai già votato</p>
+              )}
+            </div>
+          )}
+
+          {/* Campi editabili */}
           {CAMPI_EDITABILI.map(({ key, label, type }) => (
             <div key={key}>
               <label className="block text-[10px] uppercase font-semibold mb-1.5"
                 style={{ color: T.primary }}>
                 {label}
-                {key === 'prezzo' && <span className="ml-1 font-normal normal-case" style={{ color: T.textSec }}>(originale: {offerta.prezzo?.toFixed(2)}€)</span>}
+                {key === 'prezzo' && (
+                  <span className="ml-1 font-normal normal-case" style={{ color: T.textSec }}>
+                    (originale: {offerta.prezzo?.toFixed(2)}€)
+                  </span>
+                )}
               </label>
-
               {type === 'select' ? (
                 <div className="flex flex-wrap gap-2">
                   {CATEGORIE_MODIFICA.map(c => (
@@ -713,33 +718,37 @@ const ModalEditOfferta = ({ offerta, onChiudi }) => {
               {errMsg}
             </p>
           )}
+
+          {/* Bottone salva — in fondo allo scroll, sempre raggiungibile */}
+          <div className="pt-2">
+            <button
+              onClick={salva}
+              disabled={stato === 'salvando'}
+              className="w-full py-3.5 rounded-[18px] text-sm font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              style={{
+                background: stato === 'ok' ? '#16a34a' : T.primary,
+                color:      '#fff',
+                boxShadow:  '0 4px 16px rgba(100,113,68,0.3)',
+              }}>
+              {stato === 'salvando'
+                ? <><Loader size={16} strokeWidth={1.5} className="animate-spin" /> Salvo...</>
+                : stato === 'ok'
+                  ? <><Check size={16} strokeWidth={2.5} /> {isGuru ? 'Salvato!' : 'Proposta inviata!'}</>
+                  : isGuru
+                    ? <><Pencil size={16} strokeWidth={1.5} /> Salva modifica</>
+                    : <><Pencil size={16} strokeWidth={1.5} /> Invia correzione</>}
+            </button>
+            {!isGuru && stato !== 'ok' && (
+              <p className="text-center text-[10px] mt-2" style={{ color: T.textSec }}>
+                Richiede approvazione dalla community
+              </p>
+            )}
+          </div>
+
+          {/* Safe area iOS */}
+          <div style={{ height: 'env(safe-area-inset-bottom)' }} />
         </div>
 
-        {/* Footer bottone salva */}
-        <div className="px-5 py-4 shrink-0" style={{ borderTop: `1px solid ${T.border}` }}>
-          <button
-            onClick={salva}
-            disabled={stato === 'salvando'}
-            className="w-full py-3.5 rounded-[18px] text-sm font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-            style={{
-              background: stato === 'ok' ? '#16a34a' : T.primary,
-              color: '#fff',
-              boxShadow: '0 4px 16px rgba(100,113,68,0.3)',
-            }}>
-            {stato === 'salvando'
-              ? <><Loader size={16} strokeWidth={1.5} className="animate-spin" /> Salvo...</>
-              : stato === 'ok'
-                ? <><Check size={16} strokeWidth={2.5} /> {isGuru ? 'Salvato!' : 'Proposta inviata!'}</>
-                : isGuru
-                  ? <><Pencil size={16} strokeWidth={1.5} /> Salva modifica</>
-                  : <><Pencil size={16} strokeWidth={1.5} /> Invia correzione</>}
-          </button>
-          {!isGuru && stato !== 'ok' && (
-            <p className="text-center text-[10px] mt-2" style={{ color: T.textSec }}>
-              Richiede approvazione dalla community
-            </p>
-          )}
-        </div>
       </div>
     </div>
   );
@@ -3363,6 +3372,47 @@ const TabOfferte = ({ offerte, archivio = [], cittàAttiva = null }) => {
 };
 
 
+const LISTA_INIT = {
+  budgetInput:     '',
+  budgetEditing:   false,
+  listaText:       (() => {
+    try {
+      const params   = new URLSearchParams(window.location.search);
+      const listaUrl = params.get('lista');
+      if (listaUrl) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('lista');
+        window.history.replaceState({}, '', url.toString());
+        return decodeURIComponent(listaUrl).split(',').join('\n');
+      }
+    } catch {}
+    try { return localStorage.getItem('lenticchia_lista') || "pane\nfusilli\nlatte parzialmente scremato\nfiletto di maiale"; }
+    catch { return ''; }
+  })(),
+  risultato:       null,
+  isAnalyzing:     false,
+  copiatoFeedback: false,
+  vistaStorico:    false,
+  storicoListe:    (() => { try { return JSON.parse(localStorage.getItem('lenticchia_storico_v2') || '[]'); } catch { return []; } })(),
+  listaCaricata:   false,
+};
+
+function listaReducer(state, action) {
+  switch (action.type) {
+    case 'SET_BUDGET_INPUT':    return { ...state, budgetInput: action.payload };
+    case 'SET_BUDGET_EDITING':  return { ...state, budgetEditing: action.payload };
+    case 'SET_LISTA_TEXT':      return { ...state, listaText: action.payload };
+    case 'SET_RISULTATO':       return { ...state, risultato: action.payload };
+    case 'SET_ANALYZING':       return { ...state, isAnalyzing: action.payload };
+    case 'SET_COPIATO':         return { ...state, copiatoFeedback: action.payload };
+    case 'SET_VISTA_STORICO':   return { ...state, vistaStorico: action.payload };
+    case 'SET_STORICO':         return { ...state, storicoListe: action.payload };
+    case 'SET_LISTA_CARICATA':  return { ...state, listaCaricata: action.payload };
+    case 'RESET_BUDGET':        return { ...state, budgetInput: '', budgetEditing: false };
+    default:                    return state;
+  }
+}
+
 const TabListaSpesa = ({ offerte, archivio = [] }) => {
   const { isLoggedIn, listaSpesa, aggiornaListaSpesa, preferenze, aggiornaPreferenze, prodottiPreferiti } = useAuth();
   const [ls, dispatchLista] = React.useReducer(listaReducer, LISTA_INIT);
@@ -5228,7 +5278,7 @@ const TabSpese = ({ scontriniReali = [], dataLoaded = false }) => {
       {modalScontrino && (
         <div className="fixed inset-0 z-50 flex flex-col" style={{ background: T.bg }}>
 
-          {/* Header modal */}
+          {/* Header */}
           <div className="px-5 pt-10 pb-4 flex items-center gap-3 shrink-0"
             style={{ background: T.primary, boxShadow: '0 2px 12px rgba(44,48,38,0.15)' }}>
             <button onClick={chiudiModal} className="w-9 h-9 rounded-xl flex items-center justify-center"
@@ -5256,17 +5306,17 @@ const TabSpese = ({ scontriniReali = [], dataLoaded = false }) => {
           {/* Istruzione */}
           <div className="px-5 py-3 shrink-0" style={{ background: '#EEF2E4', borderBottom: `1px solid ${T.border}` }}>
             <p className="text-xs" style={{ color: T.primary }}>
-              ✏️ Tocca un prodotto per correggere il nome — il nome originale dello scontrino viene sempre conservato.
+              ✏️ Tocca un prodotto per correggere — il nome originale viene sempre conservato.
             </p>
           </div>
 
-          {/* Lista prodotti scrollabile */}
-          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+          {/* Lista prodotti scrollabile — flex-1 con min-h-0 per iOS */}
+          <div className="flex-1 overflow-y-auto min-h-0 px-4 py-3 space-y-2">
             {prodottiEdit.map((p, idx) => {
               const isSpecifico = !p.tipo_voce || p.tipo_voce === 'specifico';
-              const nomeRaw      = p.nome_raw || p.nome || '';
-              const nomeNorm     = p.nome_normalizzato || '';
-              const inEdit       = prodottoFocus === idx;
+              const nomeRaw     = p.nome_raw || p.nome || '';
+              const nomeNorm    = p.nome_normalizzato || '';
+              const inEdit      = prodottoFocus === idx;
 
               return (
                 <div key={idx}
@@ -5276,17 +5326,23 @@ const TabSpese = ({ scontriniReali = [], dataLoaded = false }) => {
 
                   {/* Header prodotto */}
                   <div className="flex items-center px-4 py-3 gap-3"
-                    onClick={() => setProdottoFocus(inEdit ? null : idx)}>
+                    onClick={e => {
+                      setProdottoFocus(inEdit ? null : idx);
+                      // Scroll automatico: porta il pannello in vista quando si apre
+                      if (!inEdit) {
+                        setTimeout(() => {
+                          e.currentTarget.closest('.rounded-\\[16px\\]')?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+                        }, 50);
+                      }
+                    }}>
                     <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
                       style={{ background: isSpecifico ? '#EEF2E4' : '#F5F5F5' }}>
                       <span style={{ fontSize: '12px' }}>{isSpecifico ? '🏷️' : '📦'}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      {/* Nome normalizzato (quello che l'utente vede/modifica) */}
                       <p className="text-sm font-medium truncate" style={{ color: T.textPrimary }}>
                         {nomeNorm || nomeRaw}
                       </p>
-                      {/* Nome raw — sempre visibile se diverso */}
                       {nomeRaw && nomeRaw !== nomeNorm && (
                         <p className="text-[10px] mt-0.5 truncate" style={{ color: T.textSec }}>
                           scontrino: <span className="font-mono">{nomeRaw}</span>
@@ -5306,10 +5362,9 @@ const TabSpese = ({ scontriniReali = [], dataLoaded = false }) => {
                       style={{ color: T.textSec }} />
                   </div>
 
-                  {/* Pannello editing — espanso al click */}
+                  {/* Pannello editing */}
                   {inEdit && (
                     <div className="px-4 pb-4 space-y-3" style={{ borderTop: `1px solid ${T.border}` }}>
-                      {/* Nome normalizzato */}
                       <div className="pt-3">
                         <label className="block text-[10px] uppercase font-semibold mb-1.5" style={{ color: T.primary }}>
                           Nome corretto
@@ -5327,7 +5382,6 @@ const TabSpese = ({ scontriniReali = [], dataLoaded = false }) => {
                         </p>
                       </div>
 
-                      {/* Unità di misura */}
                       <div>
                         <label className="block text-[10px] uppercase font-semibold mb-1.5" style={{ color: T.primary }}>
                           Unità di misura
@@ -5344,14 +5398,8 @@ const TabSpese = ({ scontriniReali = [], dataLoaded = false }) => {
                             </button>
                           ))}
                         </div>
-                        {p.unita_misura && (
-                          <p className="text-[10px] mt-1.5" style={{ color: T.textSec }}>
-                            Selezionata: <span className="font-medium" style={{ color: T.primary }}>{p.unita_misura}</span>
-                          </p>
-                        )}
                       </div>
 
-                      {/* Tag categoria e marca in sola lettura */}
                       {(p.categoria || p.marca) && (
                         <div className="flex gap-2 flex-wrap">
                           {p.categoria && (
@@ -5373,18 +5421,26 @@ const TabSpese = ({ scontriniReali = [], dataLoaded = false }) => {
                 </div>
               );
             })}
+
+            {/* Spazio extra in fondo per non nascondersi dietro il footer */}
+            <div className="h-4" />
           </div>
 
-          {/* Footer con bottone salva */}
-          <div className="px-5 py-4 shrink-0" style={{ borderTop: `1px solid ${T.border}`, background: T.surface }}>
+          {/* Footer — shrink-0 + safe area, sempre sopra la tastiera */}
+          <div className="px-5 pt-3 pb-4 shrink-0"
+            style={{
+              borderTop:     `1px solid ${T.border}`,
+              background:    T.surface,
+              paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
+            }}>
             <button
               onClick={salvaModifiche}
               disabled={salvataggioPending}
               className="w-full py-3.5 rounded-[18px] text-sm font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               style={{
                 background: salvataggioOk ? '#16a34a' : T.primary,
-                color: '#fff',
-                boxShadow: '0 4px 16px rgba(100,113,68,0.3)',
+                color:      '#fff',
+                boxShadow:  '0 4px 16px rgba(100,113,68,0.3)',
               }}>
               {salvataggioPending
                 ? <><Loader size={16} strokeWidth={1.5} className="animate-spin" /> Salvo...</>

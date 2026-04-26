@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { collection, getDocs, query, where, orderBy, limit, addDoc, updateDoc, deleteDoc, doc, setDoc, serverTimestamp, increment, getDoc, arrayUnion, runTransaction } from 'firebase/firestore';
 import { db } from './firebase';
-import { AuthProvider, useAuth, INSEGNE_DISPONIBILI, CITTA_DISPONIBILI } from './AuthContext';
+import { AuthProvider, useAuth, INSEGNE_DISPONIBILI, CITTA_DISPONIBILI, INSEGNE_PER_AREA, AREE_DISPONIBILI } from './AuthContext';
 // statoVolantini viene ora passato come prop anche alla selezione supermercati
 import {
   Search,
@@ -897,86 +897,138 @@ const ProductCard = React.memo(ProductCardBase, (prev, next) =>
 
 // ─── Schermata Selezione Supermercati (onboarding step 2) ────────────────────
 // Mostrata dopo il login se onboarding_supermercati === false.
-// L'utente vede tutte le insegne disponibili con le loro zone e seleziona le sue.
+// Step 1: scegli area geografica (Roma, Mantova, ...)
+// Step 2: spunta le insegne che frequenti in quell'area
 
-const SchermataSelezioneSupermarket = ({ statoVolantini, onConferma }) => {
-  const [selezionate, setSelezionate] = useState([]);
+const SchermataSelezioneSupermarket = ({ onConferma }) => {
+  const [step,        setStep]        = useState(1);           // 1 = area, 2 = insegne
+  const [areaScelta,  setAreaScelta]  = useState(null);         // es. "Roma"
+  const [selezionate, setSelezionate] = useState([]);           // insegne selezionate
 
-  const toggleSel = (insegna) => {
+  const toggleInsegna = (insegna) => {
     setSelezionate(prev =>
       prev.includes(insegna) ? prev.filter(i => i !== insegna) : [...prev, insegna]
     );
   };
 
-  // Raggruppa stato_volantini per insegna con le loro sedi
-  const insegneDisponibili = statoVolantini.reduce((acc, stato) => {
-    const key = stato.insegna;
-    if (!acc[key]) acc[key] = { insegna: key, tipo: stato.tipo || 'locale', sedi: [] };
-    const sediRaw = stato.sedi;
-    const sedi = Array.isArray(sediRaw) ? sediRaw : (sediRaw ? [String(sediRaw)] : []);
-    sedi.forEach(s => { if (s !== 'nazionale' && !acc[key].sedi.includes(s)) acc[key].sedi.push(s); });
-    return acc;
-  }, {});
+  const scegliArea = (area) => {
+    setAreaScelta(area);
+    // Pre-seleziona tutte le insegne dell'area — l'utente può deselezionare
+    setSelezionate(INSEGNE_PER_AREA[area] || []);
+    setStep(2);
+  };
 
-  return (
-    <div className="flex flex-col h-full overflow-y-auto" style={{ background: T.bg }}>
+  const conferma = () => {
+    if (!areaScelta || selezionate.length === 0) return;
+    // Passa area, insegne, e array vuoto punti_vendita (verranno scelti dopo)
+    onConferma(areaScelta, selezionate, []);
+  };
+
+  // ── Step 1: Selezione area ────────────────────────────────────────────────
+  if (step === 1) return (
+    <div className="flex flex-col h-full" style={{ background: T.bg }}>
       <div className="px-5 pt-10 pb-6" style={{ background: T.primary }}>
         <IconaLenticchia size={32} className="text-white mb-4" />
+        <h1 style={{ fontFamily: "'Lora', serif", fontSize: '24px', fontWeight: 500, color: '#fff', marginBottom: '8px' }}>
+          Dove fai la spesa?
+        </h1>
+        <p className="text-sm" style={{ color: 'rgba(255,255,255,0.8)' }}>
+          Scegli la tua area. Potrai selezionare i supermercati nel passo successivo.
+        </p>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-4 py-5 space-y-3">
+        {AREE_DISPONIBILI.map(({ id, label, emoji }) => (
+          <button
+            key={id}
+            onClick={() => scegliArea(id)}
+            className="w-full flex items-center gap-4 p-5 rounded-[20px] text-left transition-all active:scale-[0.99]"
+            style={{
+              background: T.surface,
+              border: `2px solid ${T.border}`,
+              boxShadow: '0 2px 8px rgba(44,48,38,0.04)',
+            }}
+          >
+            <span style={{ fontSize: '32px' }}>{emoji}</span>
+            <div>
+              <p className="font-semibold" style={{ color: T.textPrimary, fontSize: '17px' }}>{label}</p>
+              <p className="text-xs mt-0.5" style={{ color: T.textSec }}>
+                {(INSEGNE_PER_AREA[id] || []).join(' · ')}
+              </p>
+            </div>
+            <ChevronRight size={20} strokeWidth={1.5} style={{ color: T.textSec, marginLeft: 'auto', flexShrink: 0 }} />
+          </button>
+        ))}
+
+        <p className="text-xs text-center pt-2" style={{ color: T.textSec }}>
+          Vivi a Tivoli, Pavia, Sesto Fiorentino? Scegli l'area più vicina — potrai vedere le offerte di tutti i suoi supermercati.
+        </p>
+      </div>
+    </div>
+  );
+
+  // ── Step 2: Selezione insegne ─────────────────────────────────────────────
+  const insegneDellArea = INSEGNE_PER_AREA[areaScelta] || [];
+
+  return (
+    <div className="flex flex-col h-full" style={{ background: T.bg }}>
+      <div className="px-5 pt-10 pb-6" style={{ background: T.primary }}>
+        {/* Back */}
+        <button onClick={() => setStep(1)} className="flex items-center gap-1.5 mb-4"
+          style={{ color: 'rgba(255,255,255,0.75)', fontSize: '13px' }}>
+          <ArrowLeft size={14} strokeWidth={2} /> Cambia area
+        </button>
         <h1 style={{ fontFamily: "'Lora', serif", fontSize: '24px', fontWeight: 500, color: '#fff', marginBottom: '8px' }}>
           Quali supermercati frequenti?
         </h1>
         <p className="text-sm" style={{ color: 'rgba(255,255,255,0.8)' }}>
-          Il Verdetto Spesa confronterà solo quelli che selezioni.
-          Puoi cambiare in qualsiasi momento dal Profilo.
+          Area scelta: <strong>{areaScelta}</strong> · Puoi cambiare le selezioni in qualsiasi momento dal Profilo.
         </p>
       </div>
 
-      <div className="px-4 py-5 space-y-3 flex-1">
-        {Object.values(insegneDisponibili).map(({ insegna, tipo, sedi }) => {
+      <div className="flex-1 overflow-y-auto px-4 py-5 space-y-2">
+        {insegneDellArea.map(insegna => {
           const sel = selezionate.includes(insegna);
           return (
             <button
               key={insegna}
-              onClick={() => toggleSel(insegna)}
+              onClick={() => toggleInsegna(insegna)}
               className="w-full flex items-center gap-4 p-4 rounded-[20px] text-left transition-all active:scale-[0.99]"
               style={{
                 background: sel ? '#EEF2E4' : T.surface,
                 border: `2px solid ${sel ? T.primary : T.border}`,
-                boxShadow: sel ? `0 4px 16px rgba(100,113,68,0.15)` : '0 2px 8px rgba(44,48,38,0.04)',
+                boxShadow: sel ? '0 4px 16px rgba(100,113,68,0.15)' : '0 2px 8px rgba(44,48,38,0.04)',
               }}
             >
-              {/* Checkbox visuale */}
               <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
                 style={{ background: sel ? T.primary : T.border }}>
                 {sel && <span style={{ color: '#fff', fontSize: '14px', lineHeight: 1 }}>✓</span>}
               </div>
-              <div className="flex-1">
-                <div className="font-medium" style={{ color: T.textPrimary, fontSize: '16px' }}>
-                  {insegna}
-                </div>
-                <div className="text-xs mt-0.5" style={{ color: T.textSec }}>
-                  {tipo === 'nazionale'
-                    ? 'Valido in tutti i punti vendita Italia'
-                    : sedi.length > 0
-                      ? `Zone: ${sedi.join(', ')}`
-                      : 'Punti vendita Roma'
-                  }
-                </div>
-              </div>
+              <span className="font-medium" style={{ color: T.textPrimary, fontSize: '16px' }}>{insegna}</span>
             </button>
           );
         })}
+
+        {/* Seleziona/deseleziona tutto */}
+        <button
+          onClick={() => setSelezionate(
+            selezionate.length === insegneDellArea.length ? [] : [...insegneDellArea]
+          )}
+          className="w-full py-3 text-xs font-medium transition-all"
+          style={{ color: T.textSec }}
+        >
+          {selezionate.length === insegneDellArea.length ? 'Deseleziona tutti' : 'Seleziona tutti'}
+        </button>
       </div>
 
       <div className="px-4 pb-8 pt-2">
-        <p className="text-xs text-center mb-4" style={{ color: T.textSec }}>
+        <p className="text-xs text-center mb-3" style={{ color: T.textSec }}>
           {selezionate.length === 0
-            ? 'Seleziona almeno un supermercato per continuare'
-            : `${selezionate.length} supermercati selezionati`
-          }
+            ? 'Seleziona almeno un supermercato'
+            : `${selezionate.length} supermercati selezionati`}
         </p>
         <button
-          onClick={() => onConferma(selezionate)}
+          onClick={conferma}
           disabled={selezionate.length === 0}
           className="w-full py-4 rounded-[20px] font-medium text-white transition-all active:scale-[0.98] disabled:opacity-40"
           style={{ background: T.textPrimary, fontFamily: "'DM Sans', sans-serif", boxShadow: '0 8px 20px rgba(44,48,38,0.2)' }}
@@ -1083,12 +1135,19 @@ const SchermataLogin = () => {
 // ─── Sezione: I Miei Supermercati ─────────────────────────────────────────────
 
 const SezioneSupermercati = () => {
-  const { preferenze, toggleInsegna, aggiornaTessera } = useAuth();
-  const [tesseraAperta, setTesseraAperta] = useState(null);
-  const [numeroInput, setNumeroInput] = useState('');
+  const { preferenze, toggleInsegna, aggiornaPreferenze, aggiornaTessera, cambiaArea } = useAuth();
+  const [tesseraAperta, setTesseraAperta]   = useState(null);
+  const [numeroInput,   setNumeroInput]      = useState('');
+  const [cambioArea,    setCambioArea]       = useState(false); // mostra selezione area
 
-  const insegneAttive = preferenze?.insegne_attive || [...INSEGNE_DISPONIBILI];
-  const tessere = preferenze?.tessere || {};
+  const areaAttiva     = preferenze?.area_selezionata || null;
+  const insegneAttive  = new Set(preferenze?.insegne_attive || []);
+  const tessere        = preferenze?.tessere || {};
+
+  // Insegne disponibili nell'area selezionata (o tutte se nessuna area)
+  const insegneDellArea = areaAttiva
+    ? (INSEGNE_PER_AREA[areaAttiva] || [])
+    : INSEGNE_DISPONIBILI;
 
   const apriTessera = (insegna) => {
     setTesseraAperta(insegna);
@@ -1100,91 +1159,158 @@ const SezioneSupermercati = () => {
     setTesseraAperta(null);
   };
 
+  // Seleziona una nuova area — aggiorna area + pre-seleziona tutte le insegne
+  const confermaArea = async (nuovaArea) => {
+    await cambiaArea(nuovaArea);
+    setCambioArea(false);
+  };
+
   return (
-    <div className="rounded-[20px] p-5" style={{ background: T.surface, border: `1px solid ${T.border}`, boxShadow: '0 4px 24px rgba(44,48,38,0.05)' }}>
-      <h3 className="text-xs font-medium uppercase tracking-wider mb-1" style={{ color: T.textSec }}>
-        I miei supermercati
-      </h3>
-      <p className="text-xs mb-4" style={{ color: T.textSec }}>
-        Il Verdetto Spesa considera solo i supermercati attivi.
-      </p>
-      <div className="space-y-2">
-        {INSEGNE_DISPONIBILI.map(insegna => {
-          const attiva = insegneAttive.includes(insegna);
-          const tessera = tessere[insegna];
-          const hasTessera = tessera?.attiva;
-          return (
-            <div key={insegna}>
-              <div className="flex items-center gap-3 py-2">
-                {/* Toggle attiva/disattiva */}
-                <button
-                  onClick={() => toggleInsegna(insegna)}
-                  className="flex items-center gap-2 flex-1 active:scale-[0.99] transition-all"
-                >
-                  <div className="w-11 h-6 rounded-full relative transition-colors flex-shrink-0"
-                    style={{ background: attiva ? T.primary : T.border }}>
-                    <div className="w-5 h-5 rounded-full absolute top-0.5 transition-all"
-                      style={{ background: '#fff', left: attiva ? '22px' : '2px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
-                  </div>
-                  <span className="text-sm font-medium" style={{ color: attiva ? T.textPrimary : T.textSec }}>
-                    {insegna}
-                  </span>
-                </button>
-                {/* Badge tessera */}
-                {attiva && (
+    <div className="space-y-3">
+
+      {/* Card area selezionata */}
+      <div className="rounded-[20px] p-5" style={{ background: T.surface, border: `1px solid ${T.border}` }}>
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-xs font-medium uppercase tracking-wider" style={{ color: T.textSec }}>
+            Area geografica
+          </h3>
+          <button
+            onClick={() => setCambioArea(!cambioArea)}
+            className="text-xs font-medium px-2.5 py-1 rounded-lg transition-all"
+            style={{ background: T.bg, color: T.primary, border: `1px solid ${T.border}` }}
+          >
+            {cambioArea ? 'Annulla' : 'Cambia'}
+          </button>
+        </div>
+
+        {!cambioArea ? (
+          <div className="flex items-center gap-3 mt-2">
+            <span style={{ fontSize: '24px' }}>
+              {AREE_DISPONIBILI.find(a => a.id === areaAttiva)?.emoji || '📍'}
+            </span>
+            <div>
+              <p className="font-semibold" style={{ color: T.textPrimary }}>
+                {areaAttiva
+                  ? AREE_DISPONIBILI.find(a => a.id === areaAttiva)?.label || areaAttiva
+                  : 'Nessuna area selezionata'}
+              </p>
+              <p className="text-xs" style={{ color: T.textSec }}>
+                {insegneDellArea.length} supermercati disponibili in quest'area
+              </p>
+            </div>
+          </div>
+        ) : (
+          // Selezione area inline
+          <div className="mt-3 space-y-2">
+            {AREE_DISPONIBILI.map(({ id, label, emoji }) => (
+              <button
+                key={id}
+                onClick={() => confermaArea(id)}
+                className="w-full flex items-center gap-3 p-3 rounded-[14px] text-left transition-all active:scale-[0.99]"
+                style={{
+                  background: id === areaAttiva ? '#EEF2E4' : T.bg,
+                  border: `1.5px solid ${id === areaAttiva ? T.primary : T.border}`,
+                }}
+              >
+                <span style={{ fontSize: '22px' }}>{emoji}</span>
+                <div className="flex-1">
+                  <p className="text-sm font-medium" style={{ color: T.textPrimary }}>{label}</p>
+                  <p className="text-xs" style={{ color: T.textSec }}>
+                    {(INSEGNE_PER_AREA[id] || []).slice(0, 4).join(', ')}
+                    {(INSEGNE_PER_AREA[id] || []).length > 4 ? '...' : ''}
+                  </p>
+                </div>
+                {id === areaAttiva && <span style={{ color: T.primary, fontSize: '14px' }}>✓</span>}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Card insegne attive */}
+      <div className="rounded-[20px] p-5" style={{ background: T.surface, border: `1px solid ${T.border}` }}>
+        <h3 className="text-xs font-medium uppercase tracking-wider mb-1" style={{ color: T.textSec }}>
+          I miei supermercati
+        </h3>
+        <p className="text-xs mb-4" style={{ color: T.textSec }}>
+          Il Verdetto Spesa considera solo i supermercati attivi.
+          {areaAttiva && ` Mostrando l'area ${areaAttiva}.`}
+        </p>
+
+        <div className="space-y-2">
+          {insegneDellArea.map(insegna => {
+            const attiva  = insegneAttive.has(insegna);
+            const tessera = tessere[insegna];
+            const hasTessera = tessera?.attiva;
+            return (
+              <div key={insegna}>
+                <div className="flex items-center gap-3 py-2">
+                  {/* Toggle attiva/disattiva */}
                   <button
-                    onClick={() => apriTessera(insegna)}
-                    className="text-xs px-2.5 py-1 rounded-lg transition-all"
-                    style={hasTessera
-                      ? { background: '#EEF2E4', color: T.primary, border: `1px solid #C8D9A0` }
-                      : { background: T.bg, color: T.textSec, border: `1px solid ${T.border}` }
-                    }
+                    onClick={() => toggleInsegna(insegna)}
+                    className="flex items-center gap-2 flex-1 active:scale-[0.99] transition-all"
                   >
-                    {hasTessera ? '🪪 ' + (tessera.numero ? tessera.numero.slice(0, 6) + '…' : 'Tessera') : '+ Tessera'}
+                    <div className="w-11 h-6 rounded-full relative transition-colors flex-shrink-0"
+                      style={{ background: attiva ? T.primary : T.border }}>
+                      <div className="w-5 h-5 rounded-full absolute top-0.5 transition-all"
+                        style={{ background: '#fff', left: attiva ? '22px' : '2px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+                    </div>
+                    <span className="text-sm font-medium" style={{ color: attiva ? T.textPrimary : T.textSec }}>
+                      {insegna}
+                    </span>
                   </button>
-                )}
-              </div>
-              {/* Pannello inserimento numero tessera */}
-              {tesseraAperta === insegna && (
-                <div className="mt-1 mb-2 p-3 rounded-2xl" style={{ background: T.bg, border: `1px solid ${T.border}` }}>
-                  <p className="text-xs mb-2" style={{ color: T.textSec }}>Numero carta fedeltà {insegna}</p>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={numeroInput}
-                      onChange={e => setNumeroInput(e.target.value)}
-                      placeholder="Es. 1234567890"
-                      className="flex-1 px-3 py-2 rounded-xl text-base outline-none"
-                      style={{ background: T.surface, border: `1px solid ${T.border}`, color: T.textPrimary }}
-                    />
+                  {/* Badge tessera */}
+                  {attiva && (
                     <button
-                      onClick={() => salvaTessera(insegna)}
-                      className="px-4 py-2 rounded-xl text-sm font-medium text-white"
-                      style={{ background: T.primary }}
+                      onClick={() => apriTessera(insegna)}
+                      className="text-xs px-2.5 py-1 rounded-lg transition-all"
+                      style={hasTessera
+                        ? { background: '#EEF2E4', color: T.primary, border: '1px solid #C8D5A8' }
+                        : { background: T.bg, color: T.textSec, border: `1px solid ${T.border}` }
+                      }
                     >
-                      Salva
-                    </button>
-                    <button
-                      onClick={() => setTesseraAperta(null)}
-                      className="px-3 py-2 rounded-xl text-sm"
-                      style={{ color: T.textSec }}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  {tessera?.numero && (
-                    <button
-                      onClick={() => { aggiornaTessera(insegna, false, ''); setTesseraAperta(null); }}
-                      className="text-xs mt-2" style={{ color: '#DC2626' }}
-                    >
-                      Rimuovi tessera
+                      {hasTessera ? '🪪 ' + (tessera.numero ? tessera.numero.slice(0,6) + '…' : 'Sì') : '+ Tessera'}
                     </button>
                   )}
                 </div>
-              )}
-            </div>
-          );
-        })}
+
+                {/* Pannello tessera */}
+                {tesseraAperta === insegna && (
+                  <div className="mt-1 mb-2 p-3 rounded-2xl" style={{ background: T.bg, border: `1px solid ${T.border}` }}>
+                    <p className="text-xs mb-2" style={{ color: T.textSec }}>Numero carta fedeltà</p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={numeroInput}
+                        onChange={e => setNumeroInput(e.target.value)}
+                        placeholder="Es. 1234567890"
+                        className="flex-1 px-3 py-2 rounded-xl text-base outline-none"
+                        style={{ background: T.surface, border: `1px solid ${T.border}`, color: T.textPrimary }}
+                      />
+                      <button onClick={() => salvaTessera(insegna)}
+                        className="px-4 py-2 rounded-xl text-sm font-medium text-white"
+                        style={{ background: T.primary }}>
+                        Salva
+                      </button>
+                      <button onClick={() => setTesseraAperta(null)}
+                        className="px-3 py-2 rounded-xl text-sm"
+                        style={{ color: T.textSec }}>
+                        ✕
+                      </button>
+                    </div>
+                    {tessera?.numero && (
+                      <button
+                        onClick={() => { aggiornaTessera(insegna, false, ''); setTesseraAperta(null); }}
+                        className="text-xs mt-2" style={{ color: '#DC2626' }}>
+                        Rimuovi tessera
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -3084,26 +3210,32 @@ const TabOfferte = ({ offerte, archivio = [], cittàAttiva = null, preferenze = 
   const { segnalati, segnala } = useSegnalazioniStore();
   const searchRef = React.useRef(null);
 
-  // ── Deduplicazione + filtro città + filtro insegne attive ────────────────
+  // ── Deduplicazione + filtro città + filtro insegne + filtro punti vendita ────
   const offerteDedup = useMemo(() => {
-    // Insegne selezionate dall'utente — se non loggato mostra tutto
+    // Insegne selezionate — null = nessun filtro (utente non loggato)
     const insegneAttive = preferenze?.insegne_attive?.length
       ? new Set(preferenze.insegne_attive)
-      : null; // null = nessun filtro
+      : null;
+
+    // Punti vendita attivi — es. ["pim_prati_roma"]
+    const pvAttivi = new Set(preferenze?.punti_vendita_attivi || []);
 
     const seen = new Map();
     offerte.forEach(o => {
       if (o.nascosto) return;
-      // Filtro città: esclude offerte di altre città
-      // Se o.città è null (offerta senza campo città) escludiamo per sicurezza
-      // quando l'utente ha una città attiva
-      if (cittàAttiva) {
-        if (!o.città || o.città !== cittàAttiva) return;
-      }
-      // Filtro insegne: esclude insegne che l'utente ha deselezionato
+
+      // Filtro città: esclude offerte di ALTRE città, mostra quelle senza campo città
+      if (cittàAttiva && o.città && o.città !== cittàAttiva) return;
+
+      // Filtro insegne: esclude insegne deselezionate dall'utente
       if (insegneAttive && o.insegna && !insegneAttive.has(o.insegna)) return;
 
-      const key = `${(o.nome||'').toLowerCase()}_${(o.marca||'').toLowerCase()}_${o.insegna}_${o.grammatura||''}`;
+      // Filtro punti vendita: se l'offerta è di un punto vendita specifico,
+      // mostrala solo se quell'utente ha attivato quel punto vendita.
+      // Se punto_vendita_id è null = offerta di catena → sempre visibile (per l'insegna)
+      if (o.punto_vendita_id && pvAttivi.size > 0 && !pvAttivi.has(o.punto_vendita_id)) return;
+
+      const key = `${(o.nome||'').toLowerCase()}_${(o.marca||'').toLowerCase()}_${o.insegna}_${o.grammatura||''}_${o.punto_vendita_id||''}`;
       if (!seen.has(key) || seen.get(key).prezzo > o.prezzo) seen.set(key, o);
     });
     return [...seen.values()].filter(o => !o.valido_fino || o.valido_fino >= OGGI);
@@ -4218,12 +4350,20 @@ const TabListaSpesa = ({ offerte, archivio = [] }) => {
 const TabRevisioneVolantini = ({ onTorna }) => {
   const { utente, profilo } = useAuth();
   const isGuru = (profilo?.punti || 0) >= 1000;
-  const [coda,        setCoda]        = useState([]);
-  const [loading,     setLoading]     = useState(true);
-  const [elaborando,  setElaborando]  = useState(null);
-  const [motivazione, setMotivazione] = useState('');
-  const [apriRifiuto, setApriRifiuto] = useState(null);
+  const [coda,         setCoda]        = useState([]);
+  const [loading,      setLoading]     = useState(true);
+  const [elaborando,   setElaborando]  = useState(null);
+  const [motivazione,  setMotivazione] = useState('');
+  const [apriRifiuto,  setApriRifiuto] = useState(null);
 
+  // Match punto vendita — per ogni volantino in coda
+  const [matchAperto,  setMatchAperto]  = useState(null);   // docId volantino aperto per match
+  const [puntiVendita, setPuntiVendita] = useState([]);     // lista punti vendita validati da DB
+  const [pvSelezionato, setPvSelezionato] = useState({});   // { docId: punto_vendita_id | 'nuovo' }
+  const [formNuovoPv,  setFormNuovoPv]  = useState({});    // { docId: { insegna, nome, via, citta } }
+  const [salvandoPv,   setSalvandoPv]   = useState(false);
+
+  // Carica volantini in attesa di revisione
   useEffect(() => {
     if (!isGuru) return;
     let mounted = true;
@@ -4236,7 +4376,6 @@ const TabRevisioneVolantini = ({ onTorna }) => {
     )).then(async snap => {
       if (!mounted) return;
       const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      // Carico fino a 3 anteprime per ogni volantino dalla subcollection pagine
       const withPrev = await Promise.all(docs.map(async vol => {
         try {
           const pSnap = await getDocs(query(
@@ -4251,15 +4390,77 @@ const TabRevisioneVolantini = ({ onTorna }) => {
     return () => { mounted = false; };
   }, [isGuru]);
 
+  // Carica punti vendita validati quando il Guru apre il pannello match
+  useEffect(() => {
+    if (!matchAperto) return;
+    getDocs(query(
+      collection(db, 'punti_vendita'),
+      where('stato', '==', 'validato')
+      // orderBy lato client per evitare indice composito Firestore
+    )).then(snap => {
+      const pvList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      // Ordina per insegna lato client
+      pvList.sort((a, b) => (a.insegna || '').localeCompare(b.insegna || ''));
+      setPuntiVendita(pvList);
+    }).catch(() => {});
+  }, [matchAperto]);
+
+  // Crea un nuovo punto vendita validato direttamente dal Guru
+  const creaPuntoVendita = async (docId) => {
+    const form = formNuovoPv[docId] || {};
+    if (!form.insegna?.trim() || !form.nome?.trim() || !form.citta?.trim()) return;
+    setSalvandoPv(true);
+    try {
+      // ID slug: insegna_nomeDisplay_citta normalizzati
+      const slug = [form.insegna, form.nome, form.citta]
+        .join('_')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_|_$/g, '');
+
+      const pvRef = doc(db, 'punti_vendita', slug);
+      await setDoc(pvRef, {
+        id:           slug,
+        insegna:      form.insegna.trim(),
+        nome_display: form.nome.trim(),
+        via:          (form.via || '').trim(),
+        citta:        form.citta.trim(),
+        stato:        'validato',          // il Guru valida direttamente
+        proposto_da:  utente.uid,
+        validato_da:  utente.uid,
+        proposto_il:  serverTimestamp(),
+        validato_il:  serverTimestamp(),
+      }, { merge: true });
+
+      // Aggiorna la lista locale e seleziona il nuovo punto vendita
+      const nuovoPv = { id: slug, insegna: form.insegna.trim(), nome_display: form.nome.trim(),
+                        via: (form.via||'').trim(), citta: form.citta.trim() };
+      setPuntiVendita(prev => [...prev, nuovoPv]);
+      setPvSelezionato(prev => ({ ...prev, [docId]: slug }));
+      setFormNuovoPv(prev => ({ ...prev, [docId]: null }));
+    } catch (err) { console.error('Errore creazione punto vendita:', err); }
+    finally { setSalvandoPv(false); }
+  };
+
+  // Approva con punto vendita abbinato (o senza se l'utente salta il match)
   const approva = async (docId) => {
     setElaborando(docId);
     try {
+      const pvId = pvSelezionato[docId];
+      const pvInfo = pvId && pvId !== 'skip'
+        ? puntiVendita.find(p => p.id === pvId)
+        : null;
+
       await updateDoc(doc(db, 'coda_volantini', docId), {
-        stato:        'approvato',
-        approvato_da: utente.uid,
-        approvato_il: serverTimestamp(),
+        stato:             'approvato',
+        approvato_da:      utente.uid,
+        approvato_il:      serverTimestamp(),
+        punto_vendita_id:  pvInfo?.id    || null,
+        punto_vendita:     pvInfo?.nome_display || null,
+        insegna_validata:  pvInfo?.insegna      || null,
       });
       setCoda(prev => prev.filter(d => d.id !== docId));
+      setMatchAperto(null);
     } catch (err) { console.error(err); }
     finally { setElaborando(null); }
   };
@@ -4301,7 +4502,7 @@ const TabRevisioneVolantini = ({ onTorna }) => {
         )}
         <div className="flex-1">
           <h1 style={{ fontFamily: "'Lora', serif", fontSize: '20px', fontWeight: 500, color: '#fff' }}>
-            📋 Revisione volantini
+            Revisione volantini
           </h1>
           <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.75)' }}>
             Approva le foto idonee — rifiuta quelle sfocate o errate
@@ -4332,6 +4533,9 @@ const TabRevisioneVolantini = ({ onTorna }) => {
           const dataCaric = vol.data_caricamento?.toDate?.()?.toLocaleDateString('it-IT') || '—';
           const isElab    = elaborando === vol.id;
           const isRif     = apriRifiuto === vol.id;
+          const isMatch   = matchAperto === vol.id;
+          const pvSel     = pvSelezionato[vol.id];
+          const formPv    = formNuovoPv[vol.id];
 
           return (
             <div key={vol.id} className="rounded-[20px] overflow-hidden"
@@ -4345,7 +4549,7 @@ const TabRevisioneVolantini = ({ onTorna }) => {
                       {vol.insegna}
                     </p>
                     <p className="text-xs mt-0.5" style={{ color: T.textSec }}>
-                      {vol.n_foto} foto · {vol.città || '—'} · {dataCaric}
+                      {vol.n_foto} foto · {vol.citta || vol.città || '—'} · {dataCaric}
                     </p>
                   </div>
                   <span className="text-[11px] px-2 py-1 rounded-full font-medium shrink-0"
@@ -4372,6 +4576,137 @@ const TabRevisioneVolantini = ({ onTorna }) => {
                 </div>
               )}
 
+              {/* ── PANNELLO MATCH PUNTO VENDITA ─────────────────────────── */}
+              {isMatch && (
+                <div className="px-4 pb-3" style={{ borderTop: `1px solid ${T.border}` }}>
+                  <p className="text-xs font-semibold uppercase tracking-wider mt-3 mb-2" style={{ color: T.primary }}>
+                    📍 Abbina punto vendita
+                  </p>
+                  <p className="text-xs mb-3" style={{ color: T.textSec }}>
+                    Intestazione scontrino: <span className="font-mono bg-gray-100 px-1 rounded">{vol.insegna}</span>
+                    {' '}— a quale negozio corrisponde?
+                  </p>
+
+                  {/* Dropdown punti vendita esistenti */}
+                  <div className="space-y-1.5 mb-3">
+                    {/* Opzione: skip (offerta valida per tutta la catena) */}
+                    <button
+                      onClick={() => setPvSelezionato(prev => ({ ...prev, [vol.id]: 'skip' }))}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all"
+                      style={{
+                        background: pvSel === 'skip' ? '#EEF2E4' : T.bg,
+                        border: `1.5px solid ${pvSel === 'skip' ? T.primary : T.border}`,
+                      }}>
+                      <span className="text-sm">🏪</span>
+                      <div>
+                        <p className="text-xs font-medium" style={{ color: T.textPrimary }}>
+                          Offerta valida per tutta la catena
+                        </p>
+                        <p className="text-xs" style={{ color: T.textSec }}>
+                          Nessun punto vendita specifico
+                        </p>
+                      </div>
+                      {pvSel === 'skip' && <span className="ml-auto text-sm" style={{ color: T.primary }}>✓</span>}
+                    </button>
+
+                    {/* Punti vendita esistenti */}
+                    {puntiVendita.map(pv => (
+                      <button
+                        key={pv.id}
+                        onClick={() => setPvSelezionato(prev => ({ ...prev, [vol.id]: pv.id }))}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all"
+                        style={{
+                          background: pvSel === pv.id ? '#EEF2E4' : T.bg,
+                          border: `1.5px solid ${pvSel === pv.id ? T.primary : T.border}`,
+                        }}>
+                        <span className="text-sm">📍</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium truncate" style={{ color: T.textPrimary }}>
+                            {pv.nome_display}
+                          </p>
+                          <p className="text-xs truncate" style={{ color: T.textSec }}>
+                            {pv.insegna} · {pv.via || pv.citta || ''}
+                          </p>
+                        </div>
+                        {pvSel === pv.id && <span className="ml-auto shrink-0 text-sm" style={{ color: T.primary }}>✓</span>}
+                      </button>
+                    ))}
+
+                    {/* Opzione: crea nuovo punto vendita */}
+                    <button
+                      onClick={() => {
+                        setPvSelezionato(prev => ({ ...prev, [vol.id]: 'nuovo' }));
+                        setFormNuovoPv(prev => ({
+                          ...prev,
+                          [vol.id]: { insegna: vol.insegna || '', nome: '', via: '', citta: vol.citta || vol.città || '' }
+                        }));
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all"
+                      style={{
+                        background: pvSel === 'nuovo' ? '#EDE9FE' : T.bg,
+                        border: `1.5px solid ${pvSel === 'nuovo' ? '#7C3AED' : T.border}`,
+                      }}>
+                      <span className="text-sm">➕</span>
+                      <p className="text-xs font-medium" style={{ color: pvSel === 'nuovo' ? '#4C1D95' : T.textSec }}>
+                        Crea nuovo punto vendita
+                      </p>
+                    </button>
+                  </div>
+
+                  {/* Form nuovo punto vendita */}
+                  {pvSel === 'nuovo' && formPv && (
+                    <div className="rounded-xl p-3 mb-3 space-y-2"
+                      style={{ background: '#F5F3FF', border: '1px solid #DDD6FE' }}>
+                      {[
+                        { campo: 'insegna', label: 'Catena (es. PIM/Agora)', required: true },
+                        { campo: 'nome',    label: 'Nome display (es. Agorà San Basilio)', required: true },
+                        { campo: 'via',     label: 'Via / Indirizzo', required: false },
+                        { campo: 'citta',   label: 'Città', required: true },
+                      ].map(({ campo, label, required }) => (
+                        <div key={campo}>
+                          <label className="block text-[10px] font-semibold mb-0.5" style={{ color: '#4C1D95' }}>
+                            {label}{required ? ' *' : ''}
+                          </label>
+                          <input
+                            type="text"
+                            value={formPv[campo] || ''}
+                            onChange={e => setFormNuovoPv(prev => ({
+                              ...prev, [vol.id]: { ...prev[vol.id], [campo]: e.target.value }
+                            }))}
+                            className="w-full px-2.5 py-1.5 rounded-lg text-sm outline-none"
+                            style={{ background: '#fff', border: '1px solid #DDD6FE', color: T.textPrimary }}
+                          />
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => creaPuntoVendita(vol.id)}
+                        disabled={salvandoPv || !formPv.insegna?.trim() || !formPv.nome?.trim() || !formPv.citta?.trim()}
+                        className="w-full py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
+                        style={{ background: '#7C3AED', color: '#fff' }}>
+                        {salvandoPv ? 'Salvo...' : 'Crea e seleziona'}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Bottoni conferma match */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setMatchAperto(null); setPvSelezionato(prev => { const n = {...prev}; delete n[vol.id]; return n; }); }}
+                      className="flex-1 py-2 rounded-xl text-xs font-medium"
+                      style={{ background: T.bg, color: T.textSec, border: `1px solid ${T.border}` }}>
+                      Annulla
+                    </button>
+                    <button
+                      onClick={() => approva(vol.id)}
+                      disabled={isElab || (!pvSel)}
+                      className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all disabled:opacity-40 flex items-center justify-center gap-1"
+                      style={{ background: T.primary, color: '#fff' }}>
+                      {isElab ? <><Loader size={12} className="animate-spin" /> Approvo...</> : '✓ Approva con match'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Input motivazione rifiuto */}
               {isRif && (
                 <div className="px-4 pb-3">
@@ -4385,36 +4720,41 @@ const TabRevisioneVolantini = ({ onTorna }) => {
                 </div>
               )}
 
-              {/* Bottoni */}
-              <div className="flex gap-3 px-4 pb-4">
-                {!isRif ? (
-                  <>
-                    <button onClick={() => setApriRifiuto(vol.id)} disabled={isElab}
-                      className="flex-1 py-2.5 rounded-[14px] text-sm font-medium transition-all active:scale-[0.98] disabled:opacity-50"
-                      style={{ background: '#FEE2E2', color: '#DC2626' }}>
-                      ✕ Rifiuta
-                    </button>
-                    <button onClick={() => approva(vol.id)} disabled={isElab}
-                      className="flex-1 py-2.5 rounded-[14px] text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
-                      style={{ background: T.primary, color: '#fff' }}>
-                      {isElab ? <><Loader size={14} className="animate-spin" /> Approvo...</> : '✓ Approva'}
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button onClick={() => { setApriRifiuto(null); setMotivazione(''); }}
-                      className="flex-1 py-2.5 rounded-[14px] text-sm font-medium transition-all"
-                      style={{ background: T.bg, color: T.textSec, border: `1px solid ${T.border}` }}>
-                      Annulla
-                    </button>
-                    <button onClick={() => rifiuta(vol.id)} disabled={isElab}
-                      className="flex-1 py-2.5 rounded-[14px] text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
-                      style={{ background: '#DC2626', color: '#fff' }}>
-                      {isElab ? <><Loader size={14} className="animate-spin" /> Rifiuto...</> : '✕ Conferma rifiuto'}
-                    </button>
-                  </>
-                )}
-              </div>
+              {/* Bottoni azione principali */}
+              {!isMatch && (
+                <div className="flex gap-3 px-4 pb-4">
+                  {!isRif ? (
+                    <>
+                      <button onClick={() => setApriRifiuto(vol.id)} disabled={isElab}
+                        className="flex-1 py-2.5 rounded-[14px] text-sm font-medium transition-all active:scale-[0.98] disabled:opacity-50"
+                        style={{ background: '#FEE2E2', color: '#DC2626' }}>
+                        ✕ Rifiuta
+                      </button>
+                      {/* Approva con match punto vendita */}
+                      <button
+                        onClick={() => setMatchAperto(vol.id)}
+                        disabled={isElab}
+                        className="flex-1 py-2.5 rounded-[14px] text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-50"
+                        style={{ background: T.primary, color: '#fff' }}>
+                        📍 Match e approva
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button onClick={() => { setApriRifiuto(null); setMotivazione(''); }}
+                        className="flex-1 py-2.5 rounded-[14px] text-sm font-medium transition-all"
+                        style={{ background: T.bg, color: T.textSec, border: `1px solid ${T.border}` }}>
+                        Annulla
+                      </button>
+                      <button onClick={() => rifiuta(vol.id)} disabled={isElab}
+                        className="flex-1 py-2.5 rounded-[14px] text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
+                        style={{ background: '#DC2626', color: '#fff' }}>
+                        {isElab ? <><Loader size={14} className="animate-spin" /> Rifiuto...</> : '✕ Conferma rifiuto'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
@@ -4424,6 +4764,35 @@ const TabRevisioneVolantini = ({ onTorna }) => {
     </div>
   );
 };
+
+  const approva = async (docId) => {
+    setElaborando(docId);
+    try {
+      await updateDoc(doc(db, 'coda_volantini', docId), {
+        stato:        'approvato',
+        approvato_da: utente.uid,
+        approvato_il: serverTimestamp(),
+      });
+      setCoda(prev => prev.filter(d => d.id !== docId));
+    } catch (err) { console.error(err); }
+    finally { setElaborando(null); }
+  };
+
+  const rifiuta = async (docId) => {
+    setElaborando(docId);
+    try {
+      await updateDoc(doc(db, 'coda_volantini', docId), {
+        stato:        'rifiutato',
+        rifiutato_da: utente.uid,
+        rifiutato_il: serverTimestamp(),
+        motivazione:  motivazione.trim() || 'Foto non idonea',
+      });
+      setCoda(prev => prev.filter(d => d.id !== docId));
+      setApriRifiuto(null); setMotivazione('');
+    } catch (err) { console.error(err); }
+    finally { setElaborando(null); }
+  };
+
 
 const TabStato = ({ statoVolantini }) => (
   <div className="flex flex-col h-full pb-28 overflow-y-auto" style={{ background: T.bg }}>
@@ -6729,17 +7098,12 @@ function AppInterna() {
 
       // ── 2. Cache mancante o scaduta — legge da Firestore ─────────────────
       try {
-        // Filtra per città se disponibile — così un utente mantovano non vede
-        // offerte romane e viceversa
-        const offerteQuery = cittàAttiva
-          ? query(
-              collection(db, 'offerte_attive'),
-              where('città', '==', cittàAttiva)
-            )
-          : collection(db, 'offerte_attive');
-
+        // Carica TUTTE le offerte — il filtro città è fatto lato client in offerteDedup.
+        // Motivo: il campo 'città' sulle offerte dello scraper potrebbe non essere
+        // valorizzato su tutti i documenti, causando 0 risultati con where().
+        // Il filtro lato client in offerteDedup gestisce correttamente entrambi i casi.
         const [offerteSnapshot, statoSnapshot] = await Promise.all([
-          getDocs(offerteQuery),
+          getDocs(collection(db, 'offerte_attive')),
           getDocs(collection(db, 'stato_volantini')),
         ]);
 
@@ -6851,7 +7215,6 @@ function AppInterna() {
     return (
       <div className="w-full max-w-md mx-auto min-h-screen shadow-2xl relative" style={{ background: T.bg }}>
         <SchermataSelezioneSupermarket
-          statoVolantini={statoVolantini}
           onConferma={completaOnboardingSupermercati}
         />
       </div>

@@ -6335,7 +6335,8 @@ function AppInterna() {
   const [archivio, setArchivio] = useState([]);
   const [scontriniUtente, setScontriniUtente] = useState([]);
   const [scontriniDaValidare, setScontriniDaValidare] = useState([]);
-  const [swUpdateAvailable, setSwUpdateAvailable] = useState(false); // banner aggiornamento PWA
+  const [swUpdateAvailable, setSwUpdateAvailable]     = useState(false);
+  const [nVolantiniDaRevisare, setNVolantiniDaRevisare] = useState(0);
 
   // Ascolta l'evento di aggiornamento del Service Worker
   useEffect(() => {
@@ -6497,6 +6498,21 @@ function AppInterna() {
 
   // ── MODELLO IBRIDO: Offerte e Negozi sono pubblici, gli altri tab richiedono login ──
 
+  // Fetch contatore volantini da revisionare — solo per i Guru
+  // Deve stare PRIMA dei return condizionali per rispettare le Rules of Hooks
+  useEffect(() => {
+    const isGuru = (profilo?.punti || 0) >= 1000;
+    if (!utente || !isGuru) { setNVolantiniDaRevisare(0); return; }
+    let mounted = true;
+    getDocs(query(
+      collection(db, 'coda_volantini'),
+      where('stato', '==', 'in_attesa_revisione'),
+      limit(99)
+    )).then(snap => { if (mounted) setNVolantiniDaRevisare(snap.size); })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, [utente, profilo, activeTab]);
+
   if (utente && profilo && profilo.onboarding_completato === false) {
     return (
       <div className="w-full max-w-md mx-auto min-h-screen shadow-2xl relative" style={{ background: T.bg }}>
@@ -6554,19 +6570,6 @@ function AppInterna() {
 
   const nDaValidare  = scontriniDaValidare.length;
   const isGuruApp    = (profilo?.punti || 0) >= 1000;
-  const [nVolantiniDaRevisare, setNVolantiniDaRevisare] = useState(0);
-
-  useEffect(() => {
-    if (!utente || !isGuruApp) return;
-    let mounted = true;
-    getDocs(query(
-      collection(db, 'coda_volantini'),
-      where('stato', '==', 'in_attesa_revisione'),
-      limit(99)
-    )).then(snap => { if (mounted) setNVolantiniDaRevisare(snap.size); })
-      .catch(() => {});
-    return () => { mounted = false; };
-  }, [utente, isGuruApp, activeTab]);
 
   // Callback quando l'utente convalida o scarta uno scontrino
   const onScontrinoValidato = (docId) => {

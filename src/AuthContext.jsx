@@ -2,8 +2,20 @@
 // Gestisce autenticazione + tutti i dati personali dell'utente:
 //   - profilo (punti, piano, livello, città_registrazione, città_attiva)
 //   - lista_spesa (sincronizzata su cloud)
-//   - preferenze (insegne attive + tessere fedeltà)
+//   - preferenze (area, insegne attive, punti_vendita attivi, tessere)
 //   - prodotti_preferiti (prodotti con marca specifica)
+//
+// MODELLO DATI INSEGNE:
+//   L'utente sceglie:
+//     1. area_selezionata: es. "Roma" (può scegliere anche "Roma" se vive a Tivoli)
+//     2. insegne_attive: ["Lidl", "PIM/Agora"] — catene che frequenta
+//     3. punti_vendita_attivi: ["pim_prati_roma"] — negozi specifici per catene
+//        con offerte per-negozio (es. PIM/Agora)
+//
+//   Filtro offerte:
+//     mostra se: offerta.insegna ∈ insegne_attive
+//     AND (offerta.punto_vendita_id == null
+//          OR offerta.punto_vendita_id ∈ punti_vendita_attivi)
 
 import React, { createContext, useContext, useEffect, useState, useRef, useMemo } from 'react';
 import {
@@ -14,7 +26,7 @@ import {
   onAuthStateChanged
 } from 'firebase/auth';
 import {
-  doc, getDoc, setDoc, updateDoc, serverTimestamp
+  doc, getDoc, setDoc, updateDoc, serverTimestamp, increment
 } from 'firebase/firestore';
 import { auth, googleProvider, db } from './firebase';
 
@@ -28,19 +40,46 @@ export const useAuth = () => {
   return ctx;
 };
 
-// ─── Città supportate ──────────────────────────────────────────────────────────
+// ─── Aree geografiche disponibili ─────────────────────────────────────────────
+// Un'area è una macro-zona. L'utente di Tivoli sceglie "Roma" come area.
 
-export const CITTA_DISPONIBILI = [
-  { id: 'Roma',    label: 'Roma',    emoji: '🏛️' },
-  { id: 'Mantova', label: 'Mantova', emoji: '🏰' },
+export const AREE_DISPONIBILI = [
+  { id: 'Roma',    label: 'Roma e dintorni',  emoji: '🏛️' },
+  { id: 'Mantova', label: 'Mantova',          emoji: '🏰' },
 ];
 
-// ─── Insegne disponibili ───────────────────────────────────────────────────────
+// ─── Insegne per area ──────────────────────────────────────────────────────────
+// Dizionario: area → lista catene disponibili in quell'area.
+// Le insegne nazionali (Lidl, Eurospin, MD) appaiono in più aree.
+// Nuove catene si aggiungono qui quando vengono coperte dallo scraper.
 
+export const INSEGNE_PER_AREA = {
+  'Roma': [
+    'Lidl',
+    'PIM/Agora',
+    'CTS',
+    'Eurospin',
+    'Todis',
+    'MD Discount',
+    'Sacoph',
+    'Elite',
+  ],
+  'Mantova': [
+    'Esselunga',
+    'MD Discount',
+    'Carrefour Market',
+    'Lidl',
+    'Eurospin',
+  ],
+};
+
+// Lista piatta di tutte le insegne (per compatibilità con componenti esistenti)
 export const INSEGNE_DISPONIBILI = [
-  'Lidl', 'PIM/Agora', 'CTS', 'Eurospin',
-  'Todis', 'MD Discount', 'Sacoph', 'Elite'
-];
+  ...new Set(Object.values(INSEGNE_PER_AREA).flat())
+].sort();
+
+// Città disponibili (alias per compatibilità con codice esistente)
+export const CITTA_DISPONIBILI = AREE_DISPONIBILI;
 
 // ─── Profilo default ───────────────────────────────────────────────────────────
 
@@ -60,11 +99,11 @@ const creaProfiloDefault = (user, città = null) => ({
   data_iscrizione:            serverTimestamp(),
   ultimo_accesso:             serverTimestamp(),
   onboarding_completato:      false,
-  tutorial_completato:        false,  // tutorial in-app dopo il primo accesso
+  tutorial_completato:        false,
   // Città: registrazione = dove si è iscritto, attiva = quella che vede ora
   città_registrazione:        città,
   città_attiva:               città,
-  // Contatore scontrini per città — usato per eleggibilità a proporre info insegne (soglia 80%)
+  // Contatore scontrini per città — usato per eleggibilità info insegne (soglia 80%)
   scontrini_per_città:        {},
 });
 
@@ -76,10 +115,27 @@ const DEFAULT_LISTA_SPESA = {
 };
 
 const DEFAULT_PREFERENZE = {
-  zona_selezionata:        null,
+  // Area geografica scelta dall'utente (es. "Roma", "Mantova")
+  // Usata per popolare la lista di insegne disponibili nell'onboarding
+  area_selezionata:        null,
+
+  // Catene selezionate dall'utente nell'area
+  // es. ["Lidl", "PIM/Agora", "Eurospin"]
+  // null = non ha ancora completato l'onboarding supermercati
   insegne_attive:          null,
+
+  // Punti vendita specifici selezionati
+  // Rilevante per catene con offerte per-negozio (es. PIM/Agora)
+  // es. ["pim_agora_prati_roma", "pim_agora_testaccio_roma"]
+  punti_vendita_attivi:    [],
+
+  // Tessere fedeltà per insegna
+  // es. { "Lidl": { attiva: true, numero: "1234" } }
   tessere:                 {},
+
+  // Flag: ha completato la selezione supermercati nell'onboarding
   onboarding_supermercati: false,
+
   ultima_modifica:         null,
 };
 
@@ -91,13 +147,13 @@ const DEFAULT_PRODOTTI_PREFERITI = {
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }) {
-  const [utente, setUtente]                     = useState(null);
-  const [profilo, setProfilo]                   = useState(null);
-  const [listaSpesa, setListaSpesa]             = useState(DEFAULT_LISTA_SPESA);
-  const [preferenze, setPreferenze]             = useState(DEFAULT_PREFERENZE);
+  const [utente, setUtente]                       = useState(null);
+  const [profilo, setProfilo]                     = useState(null);
+  const [listaSpesa, setListaSpesa]               = useState(DEFAULT_LISTA_SPESA);
+  const [preferenze, setPreferenze]               = useState(DEFAULT_PREFERENZE);
   const [prodottiPreferiti, setProdottiPreferiti] = useState(DEFAULT_PRODOTTI_PREFERITI);
-  const [loading, setLoading]                   = useState(true);
-  const [erroreAuth, setErroreAuth]             = useState(null);
+  const [loading, setLoading]                     = useState(true);
+  const [erroreAuth, setErroreAuth]               = useState(null);
 
   const debounceListaRef = useRef(null);
 
@@ -147,13 +203,12 @@ export function AuthProvider({ children }) {
           await setDoc(refs.profilo, { ultimo_accesso: serverTimestamp() }, { merge: true });
         }
       } else {
-        // Nuovo utente — città verrà impostata durante l'onboarding
         const nuovoProfilo = creaProfiloDefault(firebaseUser, null);
         await setDoc(refs.profilo, nuovoProfilo);
         setProfilo(nuovoProfilo);
       }
 
-      // Lista spesa — migra da localStorage se è il primo accesso
+      // Lista spesa — migra da localStorage se primo accesso
       if (listaSnap.exists()) {
         setListaSpesa(listaSnap.data());
       } else {
@@ -167,9 +222,23 @@ export function AuthProvider({ children }) {
         setListaSpesa(nuovaLista);
       }
 
-      // Preferenze insegne + tessere
+      // Preferenze
       if (prefSnap.exists()) {
-        setPreferenze(prefSnap.data());
+        // Migrazione: se esistono preferenze vecchie senza area_selezionata,
+        // tenta di derivarla dalla città del profilo
+        const datiPref = prefSnap.data();
+        if (!datiPref.area_selezionata && datiPref.onboarding_supermercati) {
+          const profiloDati = profiloSnap.exists() ? profiloSnap.data() : null;
+          const areaDaCity = profiloDati?.città_attiva || profiloDati?.città_registrazione || null;
+          if (areaDaCity) {
+            datiPref.area_selezionata = areaDaCity;
+          }
+        }
+        // Migrazione: assicura che punti_vendita_attivi esista
+        if (!datiPref.punti_vendita_attivi) {
+          datiPref.punti_vendita_attivi = [];
+        }
+        setPreferenze(datiPref);
       } else {
         await setDoc(refs.preferenze, DEFAULT_PREFERENZE);
         setPreferenze(DEFAULT_PREFERENZE);
@@ -204,7 +273,7 @@ export function AuthProvider({ children }) {
     }, 1500);
   };
 
-  // ── Preferenze insegne + tessere ──────────────────────────────────────────
+  // ── Preferenze — salvataggio completo ────────────────────────────────────
   const aggiornaPreferenze = async (nuovePreferenze) => {
     setPreferenze(nuovePreferenze);
     if (!utente) return;
@@ -217,6 +286,7 @@ export function AuthProvider({ children }) {
     } catch (err) { console.error('Errore salvataggio preferenze:', err); }
   };
 
+  // ── Toggle singola insegna ─────────────────────────────────────────────────
   const toggleInsegna = async (insegna) => {
     const attive = preferenze.insegne_attive || [];
     const nuoveAttive = attive.includes(insegna)
@@ -225,14 +295,44 @@ export function AuthProvider({ children }) {
     await aggiornaPreferenze({ ...preferenze, insegne_attive: nuoveAttive });
   };
 
-  const completaOnboardingSupermercati = async (insegneSelezionate) => {
+  // ── Toggle singolo punto vendita ──────────────────────────────────────────
+  const togglePuntoVendita = async (puntoVenditaId) => {
+    const attivi = preferenze.punti_vendita_attivi || [];
+    const nuoviAttivi = attivi.includes(puntoVenditaId)
+      ? attivi.filter(id => id !== puntoVenditaId)
+      : [...attivi, puntoVenditaId];
+    await aggiornaPreferenze({ ...preferenze, punti_vendita_attivi: nuoviAttivi });
+  };
+
+  // ── Completamento onboarding supermercati ─────────────────────────────────
+  // area: es. "Roma"
+  // insegne: es. ["Lidl", "PIM/Agora"]
+  // puntiVendita: es. ["pim_agora_prati_roma"] (può essere vuoto)
+  const completaOnboardingSupermercati = async (area, insegne, puntiVendita = []) => {
     await aggiornaPreferenze({
       ...preferenze,
-      insegne_attive:          insegneSelezionate,
+      area_selezionata:        area,
+      insegne_attive:          insegne,
+      punti_vendita_attivi:    puntiVendita,
       onboarding_supermercati: true,
     });
   };
 
+  // ── Cambia area selezionata (resetta insegne) ─────────────────────────────
+  // Quando un utente cambia area, le insegne attive vengono azzerate
+  // perché le insegne disponibili cambiano
+  const cambiaArea = async (nuovaArea) => {
+    const insegneDellArea = INSEGNE_PER_AREA[nuovaArea] || [];
+    // Pre-seleziona tutte le insegne della nuova area (utente può deselezionare dopo)
+    await aggiornaPreferenze({
+      ...preferenze,
+      area_selezionata:     nuovaArea,
+      insegne_attive:       insegneDellArea,
+      punti_vendita_attivi: [],
+    });
+  };
+
+  // ── Tessere fedeltà ───────────────────────────────────────────────────────
   const aggiornaTessera = async (insegna, attiva, numero = '') => {
     const tessere = { ...(preferenze.tessere || {}) };
     if (!attiva && !numero) { delete tessere[insegna]; }
@@ -250,7 +350,7 @@ export function AuthProvider({ children }) {
     } catch (err) { console.error('Errore aggiornamento profilo:', err); }
   };
 
-  // ── Città attiva — cambiabile in qualsiasi momento ────────────────────────
+  // ── Città attiva ──────────────────────────────────────────────────────────
   const cambiaCittà = async (nuovaCittà) => {
     await aggiornaProfilo({ città_attiva: nuovaCittà });
   };
@@ -262,8 +362,7 @@ export function AuthProvider({ children }) {
     });
   };
 
-  // ── Contatore scontrini per città — aggiornato alla Fase 2 HITL ───────────
-  // Usa increment() Firestore per atomicità — evita letture stale dallo state React
+  // ── Contatore scontrini per città ─────────────────────────────────────────
   const aggiornaScontriniPerCittà = async (città) => {
     if (!utente || !città) return;
     try {
@@ -271,7 +370,6 @@ export function AuthProvider({ children }) {
       await updateDoc(ref, {
         [`scontrini_per_città.${città}`]: increment(1),
       });
-      // Aggiorna state locale ottimisticamente
       setProfilo(prev => ({
         ...prev,
         scontrini_per_città: {
@@ -282,15 +380,13 @@ export function AuthProvider({ children }) {
     } catch (err) { console.error('Errore aggiornamento scontrini per città:', err); }
   };
 
-  // Helper: verifica se l'utente è eleggibile a proporre/votare info per una città.
-  // Guru possono sempre farlo. Gli altri devono avere ≥80% scontrini in quella città
-  // e almeno 5 scontrini totali (soglia alzata da 3 per ridurre abusi in beta).
+  // Eleggibilità a proporre/votare info insegne
   const isEleggibilePerCittà = useMemo(() => (città) => {
     if (!profilo) return false;
-    if ((profilo.punti || 0) >= 1000) return true; // Guru override totale
+    if ((profilo.punti || 0) >= 1000) return true;
     const perCittà = profilo.scontrini_per_città || {};
     const totale   = Object.values(perCittà).reduce((a, b) => a + b, 0);
-    if (totale < 5) return false; // soglia minima — riduce abusi
+    if (totale < 5) return false;
     const inCittà  = perCittà[città] || 0;
     return inCittà / totale >= 0.8;
   }, [profilo]);
@@ -324,9 +420,7 @@ export function AuthProvider({ children }) {
     } catch (err) { console.error('Errore rimozione prodotto preferito:', err); }
   };
 
-  // ── Helper: rileva se siamo in PWA standalone su iOS ─────────────────────
-  // In standalone iOS < 16.4, signInWithPopup fallisce silenziosamente.
-  // Usiamo signInWithRedirect come fallback.
+  // ── iOS OAuth ─────────────────────────────────────────────────────────────
   const isIOSStandalone = () => {
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     const isStandalone = window.navigator.standalone === true
@@ -334,11 +428,10 @@ export function AuthProvider({ children }) {
     return isIOS && isStandalone;
   };
 
-  // Recupera il risultato di un redirect precedente al mount
   useEffect(() => {
     getRedirectResult(auth)
       .then(result => { if (result?.user) setUtente(result.user); })
-      .catch(() => {}); // nessun redirect in corso — silenzioso
+      .catch(() => {});
   }, []);
 
   // ── Login / Logout ────────────────────────────────────────────────────────
@@ -346,7 +439,6 @@ export function AuthProvider({ children }) {
     setErroreAuth(null);
     try {
       if (isIOSStandalone()) {
-        // iOS standalone: usa redirect (popup bloccato da Safari < 16.4)
         await signInWithRedirect(auth, googleProvider);
       } else {
         await signInWithPopup(auth, googleProvider);
@@ -364,6 +456,7 @@ export function AuthProvider({ children }) {
     catch (err) { console.error('Errore logout:', err); }
   };
 
+  // ── Onboarding privacy ────────────────────────────────────────────────────
   const completaOnboarding = async () => {
     if (!utente) return;
     try {
@@ -386,16 +479,15 @@ export function AuthProvider({ children }) {
   };
 
   const riavviaTutorial = () => {
-    // Solo locale — non serve salvare su Firestore, basta resettare lo state
-    // Il profilo Firestore viene aggiornato solo al completamento/skip
     setProfilo(prev => ({ ...prev, tutorial_completato: false }));
   };
 
-  // Helper derivati
-  const cittàAttiva    = profilo?.città_attiva    || null;
-  const cittàRegistr   = profilo?.città_registrazione || null;
+  // ── Helper derivati ───────────────────────────────────────────────────────
+  const cittàAttiva  = profilo?.città_attiva         || null;
+  const cittàRegistr = profilo?.città_registrazione  || null;
+  const areaAttiva   = preferenze?.area_selezionata  || cittàAttiva || null;
 
-  // ── Valore esposto ─────────────────────────────────────────────────────────
+  // ── Valore esposto ────────────────────────────────────────────────────────
   const value = {
     // Auth
     utente,
@@ -405,16 +497,18 @@ export function AuthProvider({ children }) {
     isLoggedIn:  !!utente,
     isPremium:   profilo?.piano === 'premium',
     loginGoogle,
-    login: loginGoogle, // alias usato in TabLoginRichiesto
+    login: loginGoogle,
     logout,
     completaOnboarding,
     completaTutorial,
     riavviaTutorial,
 
-    // Città
+    // Città / Area
     cittàAttiva,
     cittàRegistrazione: cittàRegistr,
+    areaAttiva,
     cambiaCittà,
+    cambiaArea,
     impostaCittàRegistrazione,
     aggiornaScontriniPerCittà,
     isEleggibilePerCittà,
@@ -423,9 +517,10 @@ export function AuthProvider({ children }) {
     listaSpesa,
     aggiornaListaSpesa,
 
-    // Preferenze insegne + tessere
+    // Preferenze insegne + punti vendita + tessere
     preferenze,
     toggleInsegna,
+    togglePuntoVendita,
     aggiornaPreferenze,
     aggiornaTessera,
 

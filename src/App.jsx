@@ -6310,24 +6310,23 @@ function AppInterna() {
           completaOnboardingSupermercati, cittàAttiva, impostaCittàRegistrazione,
           completaTutorial, riavviaTutorial } = useAuth();
 
-  // Legge ?tab= dall'URL — usato dagli shortcuts del manifest PWA
-  const tabDaUrl = (() => {
+  const [activeTab, setActiveTab] = useState(utente ? 'lista' : 'offerte');
+
+  // Legge ?tab= dall'URL al mount — usato dagli shortcuts del manifest PWA
+  // Deve stare in useEffect per non eseguire window.history durante il render
+  useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       const t = params.get('tab');
       const validi = ['offerte', 'lista', 'scontrino', 'spese', 'profilo', 'revisione_volantini'];
       if (t && validi.includes(t)) {
-        // Rimuove il param senza reload
+        setActiveTab(t);
         const url = new URL(window.location.href);
         url.searchParams.delete('tab');
         window.history.replaceState({}, '', url.toString());
-        return t;
       }
     } catch {}
-    return null;
-  })();
-
-  const [activeTab, setActiveTab] = useState(tabDaUrl || (utente ? 'lista' : 'offerte'));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [offerte, setOfferte] = useState([]);
   const [statoVolantini, setStatoVolantini] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -6483,23 +6482,8 @@ function AppInterna() {
     fetchData();
   }, []);
 
-  if (authLoading || loading) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center" style={{ background: T.bg }}>
-        <IconaLenticchia size={52} className="animate-bounce mb-5" style={{ color: T.primary }} />
-        <h1 className="mb-2" style={{ fontFamily: "'Lora', serif", fontSize: '24px', fontWeight: 500, color: T.textPrimary }}>Lenticchia</h1>
-        <p className="flex items-center gap-2 text-sm" style={{ color: T.textSec }}>
-          <span className="animate-spin inline-block w-4 h-4 rounded-full border-2 border-t-transparent" style={{ borderColor: `${T.primary} transparent transparent transparent` }}></span>
-          Carico le offerte della settimana...
-        </p>
-      </div>
-    );
-  }
-
-  // ── MODELLO IBRIDO: Offerte e Negozi sono pubblici, gli altri tab richiedono login ──
-
   // Fetch contatore volantini da revisionare — solo per i Guru
-  // Deve stare PRIMA dei return condizionali per rispettare le Rules of Hooks
+  // DEVE stare prima di TUTTI i return condizionali (Rules of Hooks)
   useEffect(() => {
     const isGuru = (profilo?.punti || 0) >= 1000;
     if (!utente || !isGuru) { setNVolantiniDaRevisare(0); return; }
@@ -6512,6 +6496,19 @@ function AppInterna() {
       .catch(() => {});
     return () => { mounted = false; };
   }, [utente, profilo, activeTab]);
+
+  if (authLoading || loading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center" style={{ background: T.bg }}>
+        <IconaLenticchia size={52} className="animate-bounce mb-5" style={{ color: T.primary }} />
+        <h1 className="mb-2" style={{ fontFamily: "'Lora', serif", fontSize: '24px', fontWeight: 500, color: T.textPrimary }}>Lenticchia</h1>
+        <p className="flex items-center gap-2 text-sm" style={{ color: T.textSec }}>
+          <span className="animate-spin inline-block w-4 h-4 rounded-full border-2 border-t-transparent" style={{ borderColor: `${T.primary} transparent transparent transparent` }}></span>
+          Carico le offerte della settimana...
+        </p>
+      </div>
+    );
+  }
 
   if (utente && profilo && profilo.onboarding_completato === false) {
     return (

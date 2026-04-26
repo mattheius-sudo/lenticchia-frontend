@@ -2178,7 +2178,7 @@ const TabScontrino = ({ onApriRevisione = null }) => {
         uid:              utente.uid,
         immagini_b64:     foto.map(f => f.base64),
         n_foto:           foto.length,
-        stato:            'in_attesa_revisione',
+        stato:            'in_attesa',
         città:            profilo?.città_attiva || null,
         data_caricamento: serverTimestamp(),
       });
@@ -5731,6 +5731,21 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk }) => {
 
     try {
 
+      // ── FASE 2a-bis: salva la correzione insegna se l'utente l'ha modificata ──
+      // Questo permette al sistema di imparare le ragioni sociali → insegne
+      const insegnaOriginale = scontrino.estratto?.insegna || '';
+      const insegnaCorretta  = estratto.insegna || '';
+      if (insegnaOriginale && insegnaCorretta && insegnaOriginale !== insegnaCorretta) {
+        // Salva nella collection correzioni_insegna per uso futuro del backend
+        addDoc(collection(db, 'correzioni_insegna'), {
+          testo_originale: insegnaOriginale,
+          insegna_corretta: insegnaCorretta,
+          uid_contributore: utente.uid,
+          data:             serverTimestamp(),
+          n_conferme:       1,
+        }).catch(() => {}); // fire-and-forget, non blocca il flusso principale
+      }
+
       const tuttiProdotti = estratto.prodotti || [];
 
       // Separa specifici da aggregati usando il flag _classe del backend.
@@ -6081,8 +6096,43 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk }) => {
                 Dati scontrino
               </p>
               <div className="space-y-3">
+
+                {/* Campo insegna — prominente con suggerimenti */}
+                <div>
+                  <label className="block text-xs font-semibold mb-1" style={{ color: T.primary }}>
+                    Supermercato <span style={{ color: T.accent }}>*</span>
+                  </label>
+                  <p className="text-[10px] mb-1.5" style={{ color: T.textSec }}>
+                    Se lo scontrino mostra solo la ragione sociale (es. "GS Srl") scrivi il nome del negozio sull'insegna
+                  </p>
+                  <input
+                    type="text"
+                    list="insegne-suggerite"
+                    value={estratto.insegna || ''}
+                    onChange={e => aggiornaCampoTestata('insegna', e.target.value)}
+                    placeholder="es. Lidl, PIM, Conad..."
+                    className="w-full px-3 py-2.5 rounded-xl text-base outline-none"
+                    style={{
+                      background: T.bg,
+                      border: `2px solid ${estratto.insegna?.trim() ? T.primary : T.accent}`,
+                      color: T.textPrimary,
+                    }}
+                  />
+                  <datalist id="insegne-suggerite">
+                    {INSEGNE_DISPONIBILI.map(ins => (
+                      <option key={ins} value={ins} />
+                    ))}
+                  </datalist>
+                  {/* Mostra nome sull'intestazione scontrino se diverso */}
+                  {estratto.insegna_raw && estratto.insegna_raw !== estratto.insegna && (
+                    <p className="text-[10px] mt-1" style={{ color: T.textSec }}>
+                      Estratto dallo scontrino: <span className="font-mono">{estratto.insegna_raw}</span>
+                    </p>
+                  )}
+                </div>
+
+                {/* Altri campi testata */}
                 {[
-                  { label: 'Supermercato', campo: 'insegna', tipo: 'text' },
                   { label: 'Indirizzo', campo: 'indirizzo', tipo: 'text' },
                   { label: 'Data acquisto', campo: 'data_acquisto', tipo: 'date' },
                 ].map(({ label, campo, tipo }) => (

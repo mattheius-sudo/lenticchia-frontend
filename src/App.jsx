@@ -5191,7 +5191,7 @@ const TabRevisioneVolantini = ({ onTorna }) => {
         try {
           const pSnap = await getDocs(query(
             collection(db, 'coda_volantini', vol.id, 'pagine'),
-            orderBy('indice', 'asc'), limit(3)
+            limit(3)
           ));
           return { ...vol, anteprime: pSnap.docs.map(p => p.data().immagine_b64).filter(Boolean) };
         } catch { return { ...vol, anteprime: [] }; }

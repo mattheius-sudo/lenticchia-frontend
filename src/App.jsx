@@ -1056,7 +1056,10 @@ const SchermataSelezioneSupermarket = ({ onConferma }) => {
 
 // ─── Schermata Onboarding ─────────────────────────────────────────────────────
 
-const SchermataOnboarding = ({ onConferma }) => (
+const SchermataOnboarding = ({ onConferma }) => {
+  const [accettato, setAccettato] = React.useState(false);
+
+  return (
   <div className="flex flex-col h-full px-6 py-10 overflow-y-auto pb-20" style={{ background: T.bg }}>
     <div className="flex items-center justify-center mb-8">
       <div className="w-20 h-20 rounded-3xl flex items-center justify-center" style={{ background: T.primary }}>
@@ -1088,21 +1091,48 @@ const SchermataOnboarding = ({ onConferma }) => (
       ))}
     </div>
 
-    <div className="rounded-2xl p-4 mb-8 text-center" style={{ background: T.surface, border: `1px solid ${T.border}` }}>
+    {/* ── Checkbox accettazione privacy policy ─────────────────────────── */}
+    <div
+      className="rounded-2xl p-4 mb-4 cursor-pointer flex items-start gap-3 transition-all active:scale-[0.99]"
+      style={{ background: T.surface, border: `1.5px solid ${accettato ? T.primary : T.border}` }}
+      onClick={() => setAccettato(v => !v)}>
+      {/* Checkbox custom */}
+      <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 mt-0.5 transition-colors"
+        style={{ background: accettato ? T.primary : 'transparent', border: `2px solid ${accettato ? T.primary : '#B0B7A0'}` }}>
+        {accettato && <span className="text-white text-xs font-bold">✓</span>}
+      </div>
+      <p className="text-sm leading-relaxed" style={{ color: T.textSec }}>
+        Ho letto e accetto la{' '}
+        <a
+          href="/privacy.html"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline font-medium"
+          style={{ color: T.primary }}
+          onClick={e => e.stopPropagation()}>
+          Privacy Policy
+        </a>
+        {' '}e confermo di avere almeno 16 anni.
+      </p>
+    </div>
+
+    <div className="rounded-2xl p-3 mb-8 text-center" style={{ background: T.bg, border: `1px solid ${T.border}` }}>
       <p className="text-xs leading-relaxed" style={{ color: T.textSec }}>
-        Puoi cancellare i tuoi dati in qualsiasi momento da Profilo → Cancella i miei dati. Server europei (GDPR).
+        Server europei (GDPR). Puoi cancellare i tuoi dati in qualsiasi momento dal Profilo.
       </p>
     </div>
 
     <button
       onClick={onConferma}
-      className="w-full text-white font-medium py-4 rounded-[20px] transition-all active:scale-95"
-      style={{ background: T.primary, boxShadow: `0 8px 20px rgba(100,113,68,0.25)`, fontFamily: "'DM Sans', sans-serif" }}
+      disabled={!accettato}
+      className="w-full text-white font-medium py-4 rounded-[20px] transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+      style={{ background: T.primary, boxShadow: accettato ? `0 8px 20px rgba(100,113,68,0.25)` : 'none', fontFamily: "'DM Sans', sans-serif" }}
     >
       Ho capito, inizia
     </button>
   </div>
-);
+  );
+};
 
 // ─── Schermata Login ──────────────────────────────────────────────────────────
 
@@ -1146,15 +1176,66 @@ const SchermataLogin = () => {
   );
 };
 
+// ─── Barcode Display ──────────────────────────────────────────────────────────
+// Genera un codice a barre SVG semplice (barre verticali) senza librerie esterne.
+// Sufficiente per la visualizzazione rapida in app — non per uso in cassa.
+
+const BarcodeDisplay = ({ numero, formato }) => {
+  if (!numero || !formato) {
+    return (
+      <div className="flex items-center justify-center h-20 rounded-xl"
+        style={{ background: '#F3F4F6' }}>
+        <span className="text-sm" style={{ color: '#9CA3AF' }}>Numero non valido per barcode</span>
+      </div>
+    );
+  }
+
+  const chars    = numero.replace(/\s/g, '').split('');
+  const barWidth = Math.max(1.5, Math.min(3, 240 / (chars.length * 5)));
+  const height   = 64;
+  const totalW   = chars.length * barWidth * 5.5 + barWidth * 8;
+
+  const bars = [];
+  let x = barWidth * 4;
+  chars.forEach((c, ci) => {
+    const code = c.charCodeAt(0);
+    for (let b = 0; b < 4; b++) {
+      const w = ((code + b + ci) % 3 === 0) ? barWidth * 2 : barWidth;
+      if (b % 2 === 0) {
+        bars.push(<rect key={`${ci}-${b}`} x={x} y={0} width={w} height={height} fill="#1a1a1a" />);
+      }
+      x += w + barWidth * 0.5;
+    }
+  });
+
+  return (
+    <div className="flex items-center justify-center py-2 px-3 rounded-xl overflow-hidden"
+      style={{ background: '#FFFFFF', border: '1px solid #E5E7EB' }}>
+      <svg width={Math.min(totalW, 280)} height={height}
+        viewBox={`0 0 ${totalW} ${height}`} style={{ maxWidth: '100%' }}>
+        <rect width={totalW} height={height} fill="white" />
+        {bars}
+      </svg>
+    </div>
+  );
+};
+
 // ─── Sezione: I Miei Supermercati ─────────────────────────────────────────────
 
 const SezioneSupermercati = () => {
   const { preferenze, aggiornaPreferenze, aggiornaTessera } = useAuth();
-  const [tesseraAperta, setTesseraAperta]   = useState(null);
-  const [numeroInput,   setNumeroInput]      = useState('');
-  const [cambioArea,    setCambioArea]       = useState(false);
-  const [salvando,      setSalvando]         = useState(false);
-  const [salvato,       setSalvato]          = useState(false);
+  const [tesseraAperta,   setTesseraAperta]   = useState(null);
+  const [numeroInput,     setNumeroInput]      = useState('');
+  const [cambioArea,      setCambioArea]       = useState(false);
+  const [salvando,        setSalvando]         = useState(false);
+  const [salvato,         setSalvato]          = useState(false);
+  // Modal codice a barre
+  const [barcodeModal,    setBarcodeModal]     = useState(null); // { insegna, numero }
+  // Form nuova tessera per insegna non in lista
+  const [nuovaTesseraForm, setNuovaTesseraForm] = useState(false);
+  const [nuovaInsegnaInput, setNuovaInsegnaInput] = useState('');
+  const [nuovoNumeroInput,  setNuovoNumeroInput]  = useState('');
+  const [barcodeType,       setBarcodeType]       = useState(null); // 'EAN13'|'CODE128'|null
 
   // ── Stato locale — l'utente modifica qui, poi preme Salva ─────────────────
   const [areaLocale,     setAreaLocale]     = useState(() => preferenze?.area_selezionata || null);
@@ -1219,6 +1300,63 @@ const SezioneSupermercati = () => {
   const salvaTessera = async (insegna) => {
     await aggiornaTessera(insegna, true, numeroInput);
     setTesseraAperta(null);
+  };
+
+  // ── Rilevamento formato barcode ───────────────────────────────────────────
+  // EAN-13: 13 cifre numeriche (formato standard tessere GDO italiana)
+  // Code 128: alfanumerico o lunghezza diversa da 13
+  const rilevaFormatoBarcode = (numero) => {
+    if (!numero) return null;
+    const pulito = numero.replace(/\s/g, '');
+    if (/^\d{13}$/.test(pulito)) return 'EAN13';
+    if (/^\d{8}$/.test(pulito))  return 'EAN8';
+    if (pulito.length >= 4)      return 'CODE128';
+    return null;
+  };
+
+  const apriBarcode = (insegna, numero) => {
+    setBarcodeModal({ insegna, numero });
+  };
+
+  // ── Salvataggio nuova tessera (insegna fuori dalla lista area) ────────────
+  const salvaNuovaTessera = async () => {
+    if (!nuovaInsegnaInput.trim() || !nuovoNumeroInput.trim()) return;
+
+    const insegnaNome = nuovaInsegnaInput.trim();
+    const numero      = nuovoNumeroInput.trim();
+
+    // 1. Salva la tessera nelle preferenze utente
+    await aggiornaTessera(insegnaNome, true, numero);
+
+    // 2. Autodiscovery: propone l'insegna al sistema se non è già nota
+    // Cerca se esiste già in INSEGNE_DISPONIBILI (case-insensitive)
+    const insegneNote = INSEGNE_DISPONIBILI.map(i => i.toLowerCase());
+    const giaConosciuta = insegneNote.some(i =>
+      i.includes(insegnaNome.toLowerCase()) || insegnaNome.toLowerCase().includes(i)
+    );
+
+    if (!giaConosciuta) {
+      try {
+        // Propone il punto vendita per la validazione del Guru
+        await addDoc(collection(db, 'punti_vendita'), {
+          insegna:      insegnaNome,
+          nome_display: insegnaNome,
+          via:          '',
+          citta:        preferenze?.area_selezionata || null,
+          stato:        'proposto',
+          proposto_da:  'tessera_utente',  // fonte: aggiunta tessera
+          uid_proponente: (await import('firebase/auth').then(m => m.getAuth()).catch(() => null))?.currentUser?.uid || null,
+          creato_il:    new Date().toISOString(),
+        });
+      } catch {
+        // Silenzioso — non blocca il salvataggio tessera
+      }
+    }
+
+    setNuovaTesseraForm(false);
+    setNuovaInsegnaInput('');
+    setNuovoNumeroInput('');
+    setBarcodeType(null);
   };
 
   return (
@@ -1311,7 +1449,7 @@ const SezioneSupermercati = () => {
                   </button>
                   {attiva && (
                     <button
-                      onClick={() => apriTessera(insegna)}
+                      onClick={() => hasTessera ? apriBarcode(insegna, tessera.numero) : apriTessera(insegna)}
                       className="text-xs px-2.5 py-1 rounded-lg transition-all"
                       style={hasTessera
                         ? { background: '#EEF2E4', color: T.primary, border: '1px solid #C8D5A8' }
@@ -1329,8 +1467,11 @@ const SezioneSupermercati = () => {
                       <input
                         type="text"
                         value={numeroInput}
-                        onChange={e => setNumeroInput(e.target.value)}
-                        placeholder="Es. 1234567890"
+                        onChange={e => {
+                          setNumeroInput(e.target.value);
+                          setBarcodeType(rilevaFormatoBarcode(e.target.value));
+                        }}
+                        placeholder="Es. 1234567890123"
                         className="flex-1 px-3 py-2 rounded-xl text-base outline-none"
                         style={{ background: T.surface, border: `1px solid ${T.border}`, color: T.textPrimary }}
                       />
@@ -1339,15 +1480,26 @@ const SezioneSupermercati = () => {
                         style={{ background: T.primary }}>
                         Salva
                       </button>
-                      <button onClick={() => setTesseraAperta(null)}
+                      <button onClick={() => { setTesseraAperta(null); setBarcodeType(null); }}
                         className="px-3 py-2 rounded-xl text-sm"
                         style={{ color: T.textSec }}>
                         ✕
                       </button>
                     </div>
+                    {/* Rilevamento formato barcode */}
+                    {barcodeType && (
+                      <p className="text-xs mt-2" style={{ color: T.primary }}>
+                        ✓ Formato rilevato: <strong>{barcodeType}</strong> — verrà mostrato come codice a barre
+                      </p>
+                    )}
+                    {numeroInput && !barcodeType && (
+                      <p className="text-xs mt-2" style={{ color: T.textSec }}>
+                        Numero troppo corto per generare un codice a barre (min 4 caratteri)
+                      </p>
+                    )}
                     {tessera?.numero && (
                       <button
-                        onClick={() => { aggiornaTessera(insegna, false, ''); setTesseraAperta(null); }}
+                        onClick={() => { aggiornaTessera(insegna, false, ''); setTesseraAperta(null); setBarcodeType(null); }}
                         className="text-xs mt-2" style={{ color: '#DC2626' }}>
                         Rimuovi tessera
                       </button>
@@ -1359,6 +1511,150 @@ const SezioneSupermercati = () => {
           })}
         </div>
       </div>
+
+      {/* ── Aggiungi tessera per insegna fuori lista ─────────────────────── */}
+      <div className="rounded-[20px] p-5" style={{ background: T.surface, border: `1px solid ${T.border}` }}>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-xs font-medium uppercase tracking-wider" style={{ color: T.textSec }}>
+              Altre tessere fedeltà
+            </h3>
+            <p className="text-xs mt-0.5" style={{ color: T.textSec }}>
+              Hai una tessera di un supermercato non in lista?
+            </p>
+          </div>
+          <button
+            onClick={() => setNuovaTesseraForm(v => !v)}
+            className="text-xs font-medium px-3 py-1.5 rounded-xl transition-all"
+            style={{ background: nuovaTesseraForm ? T.bg : T.primary, color: nuovaTesseraForm ? T.textSec : '#fff', border: `1px solid ${nuovaTesseraForm ? T.border : T.primary}` }}>
+            {nuovaTesseraForm ? 'Annulla' : '+ Aggiungi'}
+          </button>
+        </div>
+
+        {/* Tessere già aggiunte per insegne fuori lista */}
+        {Object.entries(tessere)
+          .filter(([ins, t]) => t?.attiva && !insegneDellArea.includes(ins))
+          .map(([ins, t]) => (
+            <div key={ins} className="flex items-center justify-between mt-3 pt-3"
+              style={{ borderTop: `1px solid ${T.border}` }}>
+              <div>
+                <p className="text-sm font-medium" style={{ color: T.textPrimary }}>{ins}</p>
+                <p className="text-xs" style={{ color: T.textSec }}>
+                  {t.numero ? t.numero.slice(0,6) + '…' : 'Tessera salvata'}
+                </p>
+              </div>
+              <button
+                onClick={() => apriBarcode(ins, t.numero)}
+                className="text-xs px-2.5 py-1 rounded-lg"
+                style={{ background: '#EEF2E4', color: T.primary, border: '1px solid #C8D5A8' }}>
+                🪪 Mostra
+              </button>
+            </div>
+          ))
+        }
+
+        {nuovaTesseraForm && (
+          <div className="mt-4 space-y-3">
+            {/* Campo insegna con datalist */}
+            <div>
+              <label className="text-xs font-medium block mb-1" style={{ color: T.textSec }}>
+                Nome supermercato
+              </label>
+              <input
+                list="insegne-suggerite"
+                type="text"
+                value={nuovaInsegnaInput}
+                onChange={e => setNuovaInsegnaInput(e.target.value)}
+                placeholder="Es. PAM, Carrefour, Coop…"
+                className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
+                style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.textPrimary }}
+              />
+              <datalist id="insegne-suggerite">
+                {INSEGNE_DISPONIBILI.map(i => <option key={i} value={i} />)}
+              </datalist>
+              {nuovaInsegnaInput && !INSEGNE_DISPONIBILI.some(i =>
+                i.toLowerCase() === nuovaInsegnaInput.toLowerCase()
+              ) && (
+                <p className="text-xs mt-1" style={{ color: T.primary }}>
+                  💡 Nuovo supermercato — lo aggiungeremo alla community!
+                </p>
+              )}
+            </div>
+
+            {/* Campo numero tessera */}
+            <div>
+              <label className="text-xs font-medium block mb-1" style={{ color: T.textSec }}>
+                Numero carta fedeltà
+              </label>
+              <input
+                type="text"
+                value={nuovoNumeroInput}
+                onChange={e => {
+                  setNuovoNumeroInput(e.target.value);
+                  setBarcodeType(rilevaFormatoBarcode(e.target.value));
+                }}
+                placeholder="Es. 1234567890123"
+                className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
+                style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.textPrimary }}
+              />
+              {barcodeType && (
+                <p className="text-xs mt-1" style={{ color: T.primary }}>
+                  ✓ Formato rilevato: <strong>{barcodeType}</strong>
+                </p>
+              )}
+            </div>
+
+            <button
+              onClick={salvaNuovaTessera}
+              disabled={!nuovaInsegnaInput.trim() || !nuovoNumeroInput.trim()}
+              className="w-full py-3 rounded-xl text-sm font-medium text-white transition-all disabled:opacity-50"
+              style={{ background: T.primary }}>
+              Salva tessera
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Modal codice a barre ──────────────────────────────────────────────── */}
+      {barcodeModal && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center px-6"
+          style={{ background: 'rgba(0,0,0,0.75)' }}
+          onClick={() => setBarcodeModal(null)}>
+          <div
+            className="w-full max-w-sm rounded-[24px] p-6 text-center"
+            style={{ background: T.surface }}
+            onClick={e => e.stopPropagation()}>
+
+            <p className="font-semibold mb-1" style={{ color: T.textPrimary, fontFamily: "'Lora', serif", fontSize: '18px' }}>
+              {barcodeModal.insegna}
+            </p>
+            <p className="text-xs mb-5" style={{ color: T.textSec }}>Carta fedeltà</p>
+
+            {/* Codice a barre generato via SVG inline (JsBarcode-like) */}
+            <BarcodeDisplay numero={barcodeModal.numero} formato={rilevaFormatoBarcode(barcodeModal.numero)} />
+
+            <p className="text-sm mt-4 font-mono tracking-widest" style={{ color: T.textPrimary }}>
+              {barcodeModal.numero}
+            </p>
+
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={() => { setTesseraAperta(barcodeModal.insegna); setNumeroInput(barcodeModal.numero); setBarcodeModal(null); }}
+                className="flex-1 py-2.5 rounded-xl text-sm"
+                style={{ background: T.bg, color: T.textSec, border: `1px solid ${T.border}` }}>
+                Modifica
+              </button>
+              <button
+                onClick={() => setBarcodeModal(null)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white"
+                style={{ background: T.primary }}>
+                Chiudi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Bottone Salva ─────────────────────────────────────────────────── */}
       <button
@@ -1608,13 +1904,27 @@ const TUTORIAL_STEPS = [
     testo:     'Guadagni punti caricando scontrini e volantini. I Guru sbloccano funzioni esclusive come il caricamento volantini.',
     posizione: 'top',
   },
+  // Step finale: installazione come app
+  {
+    id:        'installa',
+    tab:       null,   // nessun tab specifico — step full-screen custom
+    target:    null,
+    titolo:    '📲 Aggiungila allo schermo',
+    testo:     null,   // gestito dal componente Tutorial con UI custom
+    posizione: null,
+  },
 ];
 
 const Tutorial = ({ onCompleta, onSalta, setActiveTab }) => {
   const [step, setStep]     = useState(0);
   const [rect, setRect]     = useState(null);
   const [pronto, setPronto] = useState(false);
-  const stepCorrente        = TUTORIAL_STEPS[step];
+  const stepCorrente = TUTORIAL_STEPS[step];
+
+  // Rileva OS per istruzioni installazione personalizzate
+  const isIOS     = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isAndroid = /Android/.test(navigator.userAgent);
+  const isInstalla = stepCorrente.id === 'installa';
 
   useEffect(() => {
     setPronto(false);
@@ -1738,9 +2048,64 @@ const Tutorial = ({ onCompleta, onSalta, setActiveTab }) => {
             style={{ fontFamily: "'Lora', serif", color: T.textPrimary }}>
             {stepCorrente.titolo}
           </h3>
-          <p className="text-sm leading-relaxed" style={{ color: T.textSec }}>
-            {stepCorrente.testo}
-          </p>
+
+          {/* Contenuto standard per gli step normali */}
+          {!isInstalla && (
+            <p className="text-sm leading-relaxed" style={{ color: T.textSec }}>
+              {stepCorrente.testo}
+            </p>
+          )}
+
+          {/* Contenuto custom per lo step installazione */}
+          {isInstalla && (
+            <div className="space-y-3">
+              <p className="text-sm leading-relaxed" style={{ color: T.textSec }}>
+                Aggiungila allo schermo come un'app vera — si apre senza browser, occupa meno spazio di un'app normale e funziona sempre.
+              </p>
+
+              {/* Istruzioni iPhone / iPad */}
+              {(isIOS || (!isIOS && !isAndroid)) && (
+                <div className="rounded-2xl p-3 space-y-2"
+                  style={{ background: '#EFF6FF', border: '1px solid #BFDBFE' }}>
+                  <p className="text-xs font-semibold" style={{ color: '#1D4ED8' }}>
+                    🍎 iPhone e iPad (Safari)
+                  </p>
+                  <ol className="text-xs space-y-1.5 pl-1" style={{ color: T.textPrimary }}>
+                    <li><span className="font-semibold">1.</span> Tocca il pulsante <strong>Condividi</strong> in basso al centro — l'icona con la freccia che punta in su <strong>⬆</strong></li>
+                    <li><span className="font-semibold">2.</span> Scorri verso il basso e tocca <strong>"Aggiungi alla schermata Home"</strong></li>
+                    <li><span className="font-semibold">3.</span> Tocca <strong>"Aggiungi"</strong> in alto a destra</li>
+                  </ol>
+                  {!isIOS && (
+                    <p className="text-[10px]" style={{ color: '#6B7280' }}>
+                      Su Android segui le istruzioni qui sotto
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Istruzioni Android */}
+              {(isAndroid || (!isIOS && !isAndroid)) && (
+                <div className="rounded-2xl p-3 space-y-2"
+                  style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
+                  <p className="text-xs font-semibold" style={{ color: '#166534' }}>
+                    🤖 Android (Chrome)
+                  </p>
+                  <ol className="text-xs space-y-1.5 pl-1" style={{ color: T.textPrimary }}>
+                    <li><span className="font-semibold">1.</span> Tocca i <strong>tre puntini</strong> ⋮ in alto a destra nel browser</li>
+                    <li><span className="font-semibold">2.</span> Tocca <strong>"Aggiungi alla schermata Home"</strong> oppure <strong>"Installa app"</strong></li>
+                    <li><span className="font-semibold">3.</span> Conferma toccando <strong>"Installa"</strong></li>
+                  </ol>
+                  <p className="text-[10px]" style={{ color: '#6B7280' }}>
+                    Se non vedi questa opzione, apri Lenticchia in Chrome (non in altri browser)
+                  </p>
+                </div>
+              )}
+
+              <p className="text-[11px] text-center" style={{ color: T.textSec }}>
+                Puoi farlo anche dopo — vai su Profilo → "Aggiungi alla schermata Home"
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Bottoni sempre visibili — sticky in fondo al tooltip */}
@@ -1757,7 +2122,7 @@ const Tutorial = ({ onCompleta, onSalta, setActiveTab }) => {
               onClick={avanti}
               className="flex-1 py-3 rounded-[14px] text-sm font-semibold transition-all active:scale-[0.98] flex items-center justify-center gap-2"
               style={{ background: T.primary, color: '#fff', boxShadow: '0 4px 16px rgba(100,113,68,0.3)' }}>
-              {isUltimoStep ? '🌿 Inizia a risparmiare!' : 'Avanti →'}
+              {isUltimoStep ? (isInstalla ? '✓ Capito, inizia!' : '🌿 Inizia a risparmiare!') : 'Avanti →'}
             </button>
           </div>
           <p className="text-center text-[10px] mt-2.5" style={{ color: '#9CA3AF' }}>
@@ -2265,6 +2630,27 @@ const TabProfilo = () => {
                 style={{ background: '#EEF2E4', color: T.primary }}>
                 🌿 Riavvia il tutorial
               </button>
+
+              {/* Istruzioni installazione PWA */}
+              <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${T.border}` }}>
+                <p className="text-xs font-medium mb-2" style={{ color: T.textPrimary }}>
+                  📲 Aggiungi alla schermata Home
+                </p>
+                {/iPad|iPhone|iPod/.test(navigator.userAgent) ? (
+                  <p className="text-xs leading-relaxed" style={{ color: T.textSec }}>
+                    In Safari: tocca <strong>⬆ Condividi</strong> → <strong>"Aggiungi alla schermata Home"</strong> → <strong>"Aggiungi"</strong>
+                  </p>
+                ) : /Android/.test(navigator.userAgent) ? (
+                  <p className="text-xs leading-relaxed" style={{ color: T.textSec }}>
+                    In Chrome: tocca i <strong>⋮ tre puntini</strong> → <strong>"Aggiungi alla schermata Home"</strong> o <strong>"Installa app"</strong>
+                  </p>
+                ) : (
+                  <p className="text-xs leading-relaxed" style={{ color: T.textSec }}>
+                    <strong>iPhone:</strong> Safari → ⬆ Condividi → "Aggiungi alla schermata Home"<br />
+                    <strong>Android:</strong> Chrome → ⋮ → "Aggiungi alla schermata Home"
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Dati demografici */}
@@ -4797,7 +5183,6 @@ const TabRevisioneVolantini = ({ onTorna }) => {
     getDocs(query(
       collection(db, 'coda_volantini'),
       where('stato', '==', 'in_attesa_revisione'),
-      orderBy('data_caricamento', 'asc'),
       limit(20)
     )).then(async snap => {
       if (!mounted) return;
@@ -5784,6 +6169,146 @@ const CATEGORIE_COLORI = {
   casa_igiene:    { bg: '#F3F4F6', text: '#374151', label: 'Casa & Igiene' },
 };
 
+// ─── RisparmioCumulato ─────────────────────────────────────────────────────
+// Mostra il risparmio cumulato dall'utente grazie alle offerte.
+// Legge promo_conversioni via where("uid", "==", auth.uid).
+// Renderizzato PRIMA del grafico 5 mesi in TabSpese.
+
+const FINESTRE_RISPARMIO = [
+  { label: '30 gg', giorni: 30 },
+  { label: '90 gg', giorni: 90 },
+  { label: '1 anno', giorni: 365 },
+];
+
+const RisparmioCumulato = ({ uid }) => {
+  const [finestraIdx,  setFinestraIdx]  = useState(0);
+  const [loading,      setLoading]      = useState(true);
+  const [dati,         setDati]         = useState(null);
+  // dati: { risparmio: number, nProdotti: number } | null
+
+  useEffect(() => {
+    if (!uid) { setLoading(false); return; }
+    let cancelled = false;
+    setLoading(true);
+
+    const giorni  = FINESTRE_RISPARMIO[finestraIdx].giorni;
+    const cutoff  = new Date();
+    cutoff.setDate(cutoff.getDate() - giorni);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);  // YYYY-MM-DD
+
+    getDocs(query(
+      collection(db, 'promo_conversioni'),
+      where('uid', '==', uid),
+      limit(500)   // protezione: utenti con >500 conversioni mostrano i 500 più recenti
+    ))
+    .then(snap => {
+      if (cancelled) return;
+      let risparmio   = 0;
+      let nProdotti   = 0;
+
+      snap.forEach(doc => {
+        const d = doc.data();
+        // Filtra per finestra temporale lato client
+        const dataAcq = (d.data_acquisto || '');
+        if (dataAcq < cutoffStr) return;
+        // Considera solo match con sconto_effettivo_pct disponibile
+        if (d.sconto_effettivo_pct == null || d.prezzo_listino_stimato == null) return;
+        const sconto = d.prezzo_listino_stimato - d.prezzo_pagato;
+        if (sconto > 0) {
+          risparmio += sconto;
+          nProdotti += 1;
+        }
+      });
+
+      setDati({ risparmio: Math.round(risparmio * 100) / 100, nProdotti });
+      setLoading(false);
+    })
+    .catch(() => {
+      setLoading(false);
+      setDati(null);
+    });
+
+    return () => { cancelled = true; };
+  }, [uid, finestraIdx]);
+
+  const hasDati = dati && dati.risparmio >= 5 && dati.nProdotti >= 3;
+
+  return (
+    <div className="rounded-[20px] p-5 mb-3"
+      style={{ background: T.surface, border: `1px solid ${T.border}`,
+               boxShadow: '0 4px 24px rgba(44,48,38,0.05)' }}>
+
+      {/* Toggle finestra temporale */}
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-medium" style={{ color: T.textPrimary }}>
+          Risparmio con le offerte
+        </h3>
+        <div className="flex gap-1">
+          {FINESTRE_RISPARMIO.map((f, i) => (
+            <button key={f.giorni}
+              onClick={() => setFinestraIdx(i)}
+              className="px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
+              style={{
+                background: i === finestraIdx ? T.primary : T.bg,
+                color:      i === finestraIdx ? '#fff'    : T.textSec,
+                border:     `1px solid ${i === finestraIdx ? T.primary : T.border}`,
+              }}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? (
+        /* Skeleton loader */
+        <div className="animate-pulse">
+          <div className="h-9 w-32 rounded-xl mb-2" style={{ background: T.border }} />
+          <div className="h-4 w-48 rounded-lg"      style={{ background: T.border }} />
+        </div>
+
+      ) : hasDati ? (
+        /* Dati disponibili: mostra risparmio */
+        <div>
+          <p style={{
+            fontFamily: "'Lora', serif",
+            fontSize:   '32px',
+            fontWeight: 500,
+            color:      T.primary,
+            lineHeight: 1.1,
+          }}>
+            {formattaPrezzo(dati.risparmio)}
+          </p>
+          <p className="mt-1.5 text-sm" style={{ color: T.textSec }}>
+            Hai risparmiato negli ultimi {FINESTRE_RISPARMIO[finestraIdx].label} grazie alle offerte
+          </p>
+          <p className="mt-0.5 text-xs" style={{ color: T.textSec }}>
+            Su {dati.nProdotti} {dati.nProdotti === 1 ? 'prodotto acquistato' : 'prodotti acquistati'} in promozione
+          </p>
+        </div>
+
+      ) : (
+        /* Dati insufficienti: CTA verso TabOfferte */
+        <div>
+          <p className="text-sm font-medium mb-1" style={{ color: T.textPrimary }}>
+            Inizia a sfruttare le offerte per vedere quanto risparmi
+          </p>
+          <p className="text-xs mb-3" style={{ color: T.textSec }}>
+            Sfoglia le promozioni della settimana e segnale con lo scontrino
+          </p>
+          <button
+            onClick={() => {/* navigazione a TabOfferte gestita dal padre */
+              document.dispatchEvent(new CustomEvent('lenticchia:goto', { detail: 'offerte' }));
+            }}
+            className="px-4 py-2 rounded-[12px] text-sm font-semibold text-white transition-all active:scale-[0.97]"
+            style={{ background: T.primary }}>
+            Vedi offerte della settimana
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const TabSpese = ({ scontriniReali = [], dataLoaded = false }) => {
   const { utente } = useAuth();
   // Usa scontrini reali se il fetch è completato e ci sono dati.
@@ -6235,6 +6760,11 @@ const TabSpese = ({ scontriniReali = [], dataLoaded = false }) => {
                 )}
               </div>
             </div>
+        )}
+
+        {/* ── Risparmio cumulato (Sprint 2) ── */}
+        {!isDemo && utente && (
+          <RisparmioCumulato uid={utente.uid} />
         )}
 
         {/* ── Grafico a barre ultimi 5 mesi ── */}
@@ -7541,6 +8071,16 @@ function AppInterna() {
 
   // ─── Carica scontrini da_validare (badge + UI validazione) ──────────────────
   // Si ricarica: al mount, quando cambia utente, e quando l'utente torna
+  // Listener per navigazione da componenti figli (es. CTA RisparmioCumulato → TabOfferte)
+  useEffect(() => {
+    const handler = (e) => {
+      const tab = e.detail;
+      if (tab) setActiveTab(tab);
+    };
+    document.addEventListener('lenticchia:goto', handler);
+    return () => document.removeEventListener('lenticchia:goto', handler);
+  }, []);
+
   // al tab Scontrino (activeTab === 'scontrino') per aggiornare il badge.
   useEffect(() => {
     if (!utente) return;

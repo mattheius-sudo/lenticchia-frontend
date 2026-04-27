@@ -5193,7 +5193,7 @@ const TabRevisioneVolantini = ({ onTorna }) => {
             collection(db, 'coda_volantini', vol.id, 'pagine'),
             limit(3)
           ));
-          return { ...vol, anteprime: pSnap.docs.map(p => p.data().immagine_b64).filter(Boolean) };
+          return { ...vol, anteprime: pSnap.docs.map(p => p.data().base64 || p.data().immagine_b64).filter(Boolean) };
         } catch { return { ...vol, anteprime: [] }; }
       }));
       if (mounted) { setCoda(withPrev); setLoading(false); }

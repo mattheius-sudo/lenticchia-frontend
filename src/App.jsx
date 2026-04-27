@@ -5391,12 +5391,19 @@ const TabRevisioneVolantini = ({ onTorna }) => {
               {isMatch && (
                 <div className="px-4 pb-3" style={{ borderTop: `1px solid ${T.border}` }}>
                   <p className="text-xs font-semibold uppercase tracking-wider mt-3 mb-2" style={{ color: T.primary }}>
-                    📍 Abbina punto vendita
+                    📍 Identifica il punto vendita
                   </p>
-                  <p className="text-xs mb-3" style={{ color: T.textSec }}>
-                    Intestazione scontrino: <span className="font-mono bg-gray-100 px-1 rounded">{vol.insegna}</span>
-                    {' '}— a quale negozio corrisponde?
-                  </p>
+
+                  {/* Spiegazione chiara del compito del Guru */}
+                  <div className="rounded-xl p-3 mb-3" style={{ background: '#FFF8E6', border: '1px solid #FDE68A' }}>
+                    <p className="text-xs leading-relaxed" style={{ color: '#92400E' }}>
+                      <strong>L'utente ha scritto:</strong>{' '}
+                      <span className="font-mono bg-yellow-100 px-1 rounded">{vol.insegna}</span>
+                      <br />
+                      Il tuo compito: abbinalo al negozio preciso nel sistema, oppure aggiungilo se non c'è ancora.
+                      Questo serve per mostrare le offerte solo agli utenti vicini a quel negozio.
+                    </p>
+                  </div>
 
                   {/* Dropdown punti vendita esistenti */}
                   <div className="space-y-1.5 mb-3">
@@ -5411,10 +5418,10 @@ const TabRevisioneVolantini = ({ onTorna }) => {
                       <span className="text-sm">🏪</span>
                       <div>
                         <p className="text-xs font-medium" style={{ color: T.textPrimary }}>
-                          Offerta valida per tutta la catena
+                          Valido per tutta la catena {vol.insegna}
                         </p>
                         <p className="text-xs" style={{ color: T.textSec }}>
-                          Nessun punto vendita specifico
+                          Non so il negozio preciso — l'offerta è uguale ovunque
                         </p>
                       </div>
                       {pvSel === 'skip' && <span className="ml-auto text-sm" style={{ color: T.primary }}>✓</span>}

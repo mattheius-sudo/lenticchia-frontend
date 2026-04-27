@@ -5257,18 +5257,26 @@ const TabRevisioneVolantini = ({ onTorna }) => {
   const approva = async (docId) => {
     setElaborando(docId);
     try {
-      const pvId = pvSelezionato[docId];
-      const pvInfo = pvId && pvId !== 'skip'
+      const pvId   = pvSelezionato[docId];
+      const pvInfo = pvId && pvId !== 'skip' && pvId !== 'nuovo'
         ? puntiVendita.find(p => p.id === pvId)
         : null;
+
+      // Legge insegna_validata e cap dal form Guru (campi B e C)
+      const formGuru = formNuovoPv[docId] || {};
+      const insegnaValidata = formGuru.insegna_validata?.trim()
+        || pvInfo?.insegna
+        || null;
+      const capGuru = formGuru.cap?.trim() || null;
 
       await updateDoc(doc(db, 'coda_volantini', docId), {
         stato:             'approvato',
         approvato_da:      utente.uid,
         approvato_il:      serverTimestamp(),
-        punto_vendita_id:  pvInfo?.id    || null,
-        punto_vendita:     pvInfo?.nome_display || null,
-        insegna_validata:  pvInfo?.insegna      || null,
+        punto_vendita_id:  pvInfo?.id            || null,
+        punto_vendita:     pvInfo?.nome_display   || null,
+        insegna_validata:  insegnaValidata,
+        cap_riferimento:   capGuru,
       });
       setCoda(prev => prev.filter(d => d.id !== docId));
       setMatchAperto(null);
@@ -5371,12 +5379,16 @@ const TabRevisioneVolantini = ({ onTorna }) => {
               </div>
 
               {/* Anteprime */}
-              {vol.anteprime?.length > 0 && (
+              {vol.anteprime?.length > 0 ? (
                 <div className="flex gap-2 px-4 py-3 overflow-x-auto hide-scrollbar">
                   {vol.anteprime.map((b64, i) => (
-                    <img key={i} src={`data:image/jpeg;base64,${b64}`} alt={`p${i+1}`}
+                    <img key={i}
+                      src={b64.startsWith('data:') ? b64 : `data:image/jpeg;base64,${b64}`}
+                      alt={`pagina ${i+1}`}
                       className="rounded-xl shrink-0 object-cover"
-                      style={{ width: '100px', height: '130px' }} />
+                      style={{ width: '100px', height: '130px', background: T.border }}
+                      onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='flex'; }}
+                    />
                   ))}
                   {vol.n_foto > 3 && (
                     <div className="w-[100px] h-[130px] rounded-xl shrink-0 flex items-center justify-center"
@@ -5384,6 +5396,15 @@ const TabRevisioneVolantini = ({ onTorna }) => {
                       <span className="text-sm" style={{ color: T.textSec }}>+{vol.n_foto - 3} altre</span>
                     </div>
                   )}
+                </div>
+              ) : (
+                <div className="px-4 py-3">
+                  <div className="rounded-xl flex items-center justify-center gap-2 py-3"
+                    style={{ background: T.bg, border: `1px solid ${T.border}` }}>
+                    <span style={{ color: T.textSec, fontSize: '13px' }}>
+                      📷 {vol.n_foto} foto caricate — anteprima non disponibile
+                    </span>
+                  </div>
                 </div>
               )}
 
@@ -5402,6 +5423,54 @@ const TabRevisioneVolantini = ({ onTorna }) => {
                       <br />
                       Il tuo compito: abbinalo al negozio preciso nel sistema, oppure aggiungilo se non c'è ancora.
                       Questo serve per mostrare le offerte solo agli utenti vicini a quel negozio.
+                    </p>
+                  </div>
+
+                  {/* B. Insegna canonica — corregi il nome se necessario */}
+                  <div className="mb-3">
+                    <label className="block text-[10px] font-semibold uppercase mb-1" style={{ color: T.textSec }}>
+                      Insegna canonica *
+                    </label>
+                    <input
+                      list="insegne-guru-list"
+                      type="text"
+                      placeholder="es. PIM/Agora, Lidl, Esselunga…"
+                      defaultValue={vol.insegna || ''}
+                      onChange={e => setFormNuovoPv(prev => ({
+                        ...prev,
+                        [vol.id]: { ...(prev[vol.id] || {}), insegna_validata: e.target.value }
+                      }))}
+                      className="w-full px-3 py-2 rounded-xl text-sm outline-none"
+                      style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.textPrimary }}
+                    />
+                    <datalist id="insegne-guru-list">
+                      {INSEGNE_DISPONIBILI.map(i => <option key={i} value={i} />)}
+                    </datalist>
+                    <p className="text-[10px] mt-1" style={{ color: T.textSec }}>
+                      Correggi se l'utente ha scritto un nome diverso dal canonico (es. "Elite" → "Elite")
+                    </p>
+                  </div>
+
+                  {/* C. CAP di riferimento */}
+                  <div className="mb-3">
+                    <label className="block text-[10px] font-semibold uppercase mb-1" style={{ color: T.textSec }}>
+                      CAP del negozio (opzionale)
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={5}
+                      placeholder="es. 00154"
+                      defaultValue={''}
+                      onChange={e => setFormNuovoPv(prev => ({
+                        ...prev,
+                        [vol.id]: { ...(prev[vol.id] || {}), cap: e.target.value }
+                      }))}
+                      className="w-full px-3 py-2 rounded-xl text-sm outline-none"
+                      style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.textPrimary }}
+                    />
+                    <p className="text-[10px] mt-1" style={{ color: T.textSec }}>
+                      Serve per mostrare l'offerta agli utenti vicini — puoi lasciare vuoto se non lo sai
                     </p>
                   </div>
 

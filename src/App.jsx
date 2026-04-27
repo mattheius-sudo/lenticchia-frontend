@@ -5191,7 +5191,7 @@ const TabRevisioneVolantini = ({ onTorna }) => {
         try {
           const pSnap = await getDocs(query(
             collection(db, 'coda_volantini', vol.id, 'pagine'),
-            limit(3)
+            limit(30)
           ));
           return { ...vol, anteprime: pSnap.docs.map(p => p.data().base64 || p.data().immagine_b64).filter(Boolean) };
         } catch { return { ...vol, anteprime: [] }; }
@@ -5254,8 +5254,11 @@ const TabRevisioneVolantini = ({ onTorna }) => {
   };
 
   // Approva con punto vendita abbinato (o senza se l'utente salta il match)
+  const [erroreApprova, setErroreApprova] = useState(null);
+
   const approva = async (docId) => {
     setElaborando(docId);
+    setErroreApprova(null);
     try {
       const pvId   = pvSelezionato[docId];
       const pvInfo = pvId && pvId !== 'skip' && pvId !== 'nuovo'
@@ -5280,7 +5283,10 @@ const TabRevisioneVolantini = ({ onTorna }) => {
       });
       setCoda(prev => prev.filter(d => d.id !== docId));
       setMatchAperto(null);
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error('Errore approva:', err);
+      setErroreApprova(err?.message || err?.code || 'Errore sconosciuto');
+    }
     finally { setElaborando(null); }
   };
 
@@ -5387,15 +5393,9 @@ const TabRevisioneVolantini = ({ onTorna }) => {
                       alt={`pagina ${i+1}`}
                       className="rounded-xl shrink-0 object-cover"
                       style={{ width: '100px', height: '130px', background: T.border }}
-                      onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='flex'; }}
+                      onError={e => { e.target.style.display='none'; }}
                     />
                   ))}
-                  {vol.n_foto > 3 && (
-                    <div className="w-[100px] h-[130px] rounded-xl shrink-0 flex items-center justify-center"
-                      style={{ background: T.bg, border: `1px solid ${T.border}` }}>
-                      <span className="text-sm" style={{ color: T.textSec }}>+{vol.n_foto - 3} altre</span>
-                    </div>
-                  )}
                 </div>
               ) : (
                 <div className="px-4 py-3">
@@ -5572,6 +5572,19 @@ const TabRevisioneVolantini = ({ onTorna }) => {
                         style={{ background: '#7C3AED', color: '#fff' }}>
                         {salvandoPv ? 'Salvo...' : 'Crea e seleziona'}
                       </button>
+                    </div>
+                  )}
+
+                  {/* Errore approvazione */}
+                  {erroreApprova && (
+                    <div className="rounded-xl px-3 py-2 mb-2"
+                      style={{ background: '#FEF2F2', border: '1px solid #FECACA' }}>
+                      <p className="text-xs font-semibold" style={{ color: '#DC2626' }}>
+                        ❌ Errore: {erroreApprova}
+                      </p>
+                      <p className="text-xs mt-0.5" style={{ color: '#9CA3AF' }}>
+                        Verifica di essere connesso e riprova. Se persiste, controlla Firestore Rules.
+                      </p>
                     </div>
                   )}
 

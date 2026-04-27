@@ -105,13 +105,27 @@ const TILE_INSEGNE = {
   'default':     'bg-stone-600   text-white',
 };
 
+// Determina l'etichetta corretta per il prezzo normalizzato
+// in base alla grammatura del prodotto (es. "1L" -> "/L", "500g" -> "/kg", "al kg" -> "/kg")
+const etichettaUnitaPrezzo = (grammatura) => {
+  if (!grammatura) return '/kg';
+  const g = grammatura.toLowerCase().trim();
+  // Liquidi: mostra /L
+  if (/\d\s*(l|litri|litro)\b/.test(g)) return '/L';
+  if (/\d\s*(ml|cl)\b/.test(g)) return '/L';
+  if (g === 'al litro') return '/L';
+  // Al pezzo
+  if (g === 'al pezzo' || g === 'al pz') return '/pz';
+  // Peso: /kg (default)
+  return '/kg';
+};
+
 const getBadgeInsegna = (insegna) => {
   if (!insegna) return BADGE_INSEGNE['default'];
   if (BADGE_INSEGNE[insegna]) return BADGE_INSEGNE[insegna];
   const key = Object.keys(BADGE_INSEGNE).find(k => k !== 'default' && insegna.toLowerCase().includes(k.toLowerCase()));
   return key ? BADGE_INSEGNE[key] : BADGE_INSEGNE['default'];
 };
-
 const getTileInsegna = (insegna) => {
   if (!insegna) return TILE_INSEGNE['default'];
   if (TILE_INSEGNE[insegna]) return TILE_INSEGNE[insegna];
@@ -821,7 +835,7 @@ const ProductCardBase = ({ offerta, storico = null, archivio = [], index = 0, se
           </div>
           {offerta.prezzo_kg && (
             <div className="mt-0.5" style={{ color: T.textSec, fontSize: '13px' }}>
-              {formattaPrezzo(offerta.prezzo_kg)}/kg
+              {formattaPrezzo(offerta.prezzo_kg)}{etichettaUnitaPrezzo(offerta.grammatura)}
             </div>
           )}
           {storico && storico.prezzo !== offerta.prezzo && (
@@ -1756,6 +1770,362 @@ const Tutorial = ({ onCompleta, onSalta, setActiveTab }) => {
   );
 };
 
+// ─── Schermata Onboarding Demografico (opzionale, Sprint 1) ──────────────────
+// Mostrata una sola volta dopo l'onboarding supermercati.
+// Reward: +50 punti immediati al completamento (anche se si saltano tutte le domande).
+// Tutti i campi sono opzionali — l'utente può saltare singole domande o tutto il form.
+// Dati salvati in users/{uid}/private/profilo_demografico (mai nel profilo principale).
+
+const FASCIA_ETA_OPTIONS = [
+  '18-29', '30-44', '45-59', '60-74', '75+', 'Preferisco non dirlo',
+];
+
+const NUCLEO_OPTIONS = [
+  'Vivo da solo/a',
+  'Coppia senza figli',
+  'Famiglia con figli piccoli (0-12)',
+  'Famiglia con figli adolescenti/adulti',
+  'Coabitazione (coinquilini)',
+  'Preferisco non dirlo',
+];
+
+const PREFERENZE_DIETETICHE_OPTIONS = [
+  'Vegetariano/a', 'Vegano/a', 'Senza glutine', 'Senza lattosio',
+  'Bio-oriented', 'Halal/Kosher', 'Nessuna in particolare',
+];
+
+const SchermataOnboardingDemografico = ({ onConferma, onSalta, precompilato = null }) => {
+  const [step, setStep]                   = useState(1); // 1-4
+  const [fasciaEta, setFasciaEta]         = useState(precompilato?.fascia_eta || null);
+  const [nucleo, setNucleo]               = useState(precompilato?.nucleo || null);
+  const [cap, setCap]                     = useState(precompilato?.cap || '');
+  const [capErrore, setCapErrore]         = useState('');
+  const [prefDiet, setPrefDiet]           = useState(precompilato?.preferenze_dietetiche || []);
+  const [salvando, setSalvando]           = useState(false);
+
+  const STEPS_TOTALI = 4;
+
+  const togglePrefDiet = (p) => {
+    setPrefDiet(prev =>
+      prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]
+    );
+  };
+
+  const validaCapEAvanza = () => {
+    if (cap && !/^\d{5}$/.test(cap.trim())) {
+      setCapErrore('Inserisci un CAP valido a 5 cifre');
+      return;
+    }
+    setCapErrore('');
+    setStep(4);
+  };
+
+  const conferma = async () => {
+    setSalvando(true);
+    const dati = {
+      fascia_eta:              fasciaEta,
+      nucleo:                  nucleo,
+      cap:                     cap.trim() || null,
+      preferenze_dietetiche:   prefDiet,
+      versione_form:           1,
+      uid:                     null, // compilato lato onConferma
+    };
+    await onConferma(dati);
+    setSalvando(false);
+  };
+
+  // Progress bar
+  const ProgressBar = () => (
+    <div className="flex gap-1.5 mb-6">
+      {Array.from({ length: STEPS_TOTALI }).map((_, i) => (
+        <div key={i} className="flex-1 h-1 rounded-full transition-all"
+          style={{ background: i < step ? T.primary : T.border }} />
+      ))}
+    </div>
+  );
+
+  const StepWrapper = ({ children }) => (
+    <div className="flex flex-col h-full" style={{ background: T.bg }}>
+      {/* Header */}
+      <div className="safe-top shrink-0 px-5 pt-6 pb-4"
+        style={{ background: T.surface, borderBottom: `1px solid ${T.border}` }}>
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-xs font-medium" style={{ color: T.textSec }}>
+            Domanda {step} di {STEPS_TOTALI}
+          </span>
+          <button onClick={onSalta}
+            className="text-xs px-3 py-1.5 rounded-lg"
+            style={{ color: T.textSec, background: T.bg }}>
+            Salta tutto
+          </button>
+        </div>
+        <ProgressBar />
+        {/* Banner privacy */}
+        <div className="rounded-[14px] p-3 mb-1"
+          style={{ background: '#EEF2E4', border: `1px solid #C8D9A0` }}>
+          <p className="text-[11px] leading-relaxed" style={{ color: T.primary }}>
+            🔒 Questi dati ci aiutano a darti consigli più precisi e a segnalarti offerte
+            rilevanti. In forma completamente anonima e aggregata (mai individuale) potranno
+            essere condivisi con partner di ricerca di mercato. Puoi modificare o revocare
+            questa condivisione in ogni momento dal tuo profilo.{' '}
+            <strong>Tutti i campi sono opzionali.</strong>
+          </p>
+        </div>
+      </div>
+      {/* Corpo */}
+      <div className="flex-1 overflow-y-auto px-5 py-5">
+        {children}
+      </div>
+    </div>
+  );
+
+  // ── Step 1: Fascia età ─────────────────────────────────────────────────────
+  if (step === 1) return (
+    <StepWrapper>
+      <h2 className="mb-1" style={{ fontFamily: "'Lora', serif", fontSize: '22px', fontWeight: 500, color: T.textPrimary }}>
+        Quanti anni hai?
+      </h2>
+      <p className="text-sm mb-5" style={{ color: T.textSec }}>
+        Ci aiuta a personalizzare le offerte più rilevanti per te.
+      </p>
+      <div className="space-y-2">
+        {FASCIA_ETA_OPTIONS.map(opt => (
+          <button key={opt} onClick={() => { setFasciaEta(opt); setStep(2); }}
+            className="w-full flex items-center gap-3 px-4 py-3.5 rounded-[16px] text-left transition-all active:scale-[0.99]"
+            style={{
+              background: fasciaEta === opt ? '#EEF2E4' : T.surface,
+              border: `1.5px solid ${fasciaEta === opt ? T.primary : T.border}`,
+            }}>
+            <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+              style={{ background: fasciaEta === opt ? T.primary : T.border }}>
+              {fasciaEta === opt && <span style={{ color: '#fff', fontSize: '12px' }}>✓</span>}
+            </div>
+            <span className="text-sm font-medium" style={{ color: T.textPrimary }}>{opt}</span>
+          </button>
+        ))}
+      </div>
+      <button onClick={() => setStep(2)}
+        className="w-full mt-4 py-3 text-sm"
+        style={{ color: T.textSec }}>
+        Preferisco non rispondere →
+      </button>
+    </StepWrapper>
+  );
+
+  // ── Step 2: Nucleo familiare ───────────────────────────────────────────────
+  if (step === 2) return (
+    <StepWrapper>
+      <h2 className="mb-1" style={{ fontFamily: "'Lora', serif", fontSize: '22px', fontWeight: 500, color: T.textPrimary }}>
+        Come è composto il tuo nucleo?
+      </h2>
+      <p className="text-sm mb-5" style={{ color: T.textSec }}>
+        Ci aiuta a capire meglio le esigenze di spesa della tua famiglia.
+      </p>
+      <div className="space-y-2">
+        {NUCLEO_OPTIONS.map(opt => (
+          <button key={opt} onClick={() => { setNucleo(opt); setStep(3); }}
+            className="w-full flex items-center gap-3 px-4 py-3.5 rounded-[16px] text-left transition-all active:scale-[0.99]"
+            style={{
+              background: nucleo === opt ? '#EEF2E4' : T.surface,
+              border: `1.5px solid ${nucleo === opt ? T.primary : T.border}`,
+            }}>
+            <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+              style={{ background: nucleo === opt ? T.primary : T.border }}>
+              {nucleo === opt && <span style={{ color: '#fff', fontSize: '12px' }}>✓</span>}
+            </div>
+            <span className="text-sm font-medium" style={{ color: T.textPrimary }}>{opt}</span>
+          </button>
+        ))}
+      </div>
+      <button onClick={() => setStep(3)}
+        className="w-full mt-4 py-3 text-sm"
+        style={{ color: T.textSec }}>
+        Preferisco non rispondere →
+      </button>
+    </StepWrapper>
+  );
+
+  // ── Step 3: CAP ────────────────────────────────────────────────────────────
+  if (step === 3) return (
+    <StepWrapper>
+      <h2 className="mb-1" style={{ fontFamily: "'Lora', serif", fontSize: '22px', fontWeight: 500, color: T.textPrimary }}>
+        Qual è il tuo CAP?
+      </h2>
+      <p className="text-sm mb-5" style={{ color: T.textSec }}>
+        Usiamo solo il CAP (mai l'indirizzo preciso) per aggregare dati per zona.
+      </p>
+      <input
+        type="text" inputMode="numeric" pattern="[0-9]*"
+        value={cap}
+        onChange={e => { setCap(e.target.value.replace(/\D/g, '').slice(0, 5)); setCapErrore(''); }}
+        placeholder="es. 00154"
+        maxLength={5}
+        className="w-full px-4 py-3.5 rounded-[16px] text-lg outline-none text-center font-mono mb-2"
+        style={{ background: T.surface, border: `1.5px solid ${capErrore ? T.accent : T.border}`, color: T.textPrimary, letterSpacing: '0.1em' }}
+      />
+      {capErrore && (
+        <p className="text-xs text-center mb-3" style={{ color: T.accent }}>{capErrore}</p>
+      )}
+      <button onClick={validaCapEAvanza}
+        disabled={!cap && false}
+        className="w-full py-4 rounded-[18px] text-sm font-semibold transition-all active:scale-[0.98] mt-2"
+        style={{ background: T.primary, color: '#fff' }}>
+        {cap ? 'Avanti' : 'Salta questo campo'}
+      </button>
+      <button onClick={() => { setCap(''); setStep(4); }}
+        className="w-full mt-3 py-3 text-sm"
+        style={{ color: T.textSec }}>
+        Preferisco non dirlo →
+      </button>
+    </StepWrapper>
+  );
+
+  // ── Step 4: Preferenze dietetiche (multi-select) ──────────────────────────
+  return (
+    <StepWrapper>
+      <h2 className="mb-1" style={{ fontFamily: "'Lora', serif", fontSize: '22px', fontWeight: 500, color: T.textPrimary }}>
+        Hai preferenze alimentari?
+      </h2>
+      <p className="text-sm mb-5" style={{ color: T.textSec }}>
+        Selezione multipla. Ci aiuta a mettere in evidenza le offerte più adatte a te.
+      </p>
+      <div className="space-y-2 mb-6">
+        {PREFERENZE_DIETETICHE_OPTIONS.map(opt => {
+          const sel = prefDiet.includes(opt);
+          return (
+            <button key={opt} onClick={() => togglePrefDiet(opt)}
+              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-[16px] text-left transition-all active:scale-[0.99]"
+              style={{
+                background: sel ? '#EEF2E4' : T.surface,
+                border: `1.5px solid ${sel ? T.primary : T.border}`,
+              }}>
+              <div className="w-5 h-5 rounded-lg flex items-center justify-center shrink-0"
+                style={{ background: sel ? T.primary : T.border }}>
+                {sel && <span style={{ color: '#fff', fontSize: '12px' }}>✓</span>}
+              </div>
+              <span className="text-sm font-medium" style={{ color: T.textPrimary }}>{opt}</span>
+            </button>
+          );
+        })}
+      </div>
+      <button onClick={conferma} disabled={salvando}
+        className="w-full py-4 rounded-[18px] text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-60 flex items-center justify-center gap-2"
+        style={{ background: T.primary, color: '#fff', boxShadow: '0 4px 16px rgba(100,113,68,0.3)' }}>
+        {salvando
+          ? <><Loader size={16} className="animate-spin" /> Salvo...</>
+          : <><span>✓</span> Completa e guadagna +50pt</>}
+      </button>
+      <button onClick={onSalta}
+        className="w-full mt-3 py-3 text-sm"
+        style={{ color: T.textSec }}>
+        Salta tutto
+      </button>
+    </StepWrapper>
+  );
+};
+
+// ─── Card dati demografici (usata in TabProfilo sezione account) ──────────────
+const DatiDemograficiCard = () => {
+  const { utente } = useAuth();
+  const [profDemo, setProfDemo]     = useState(null);
+  const [loading, setLoading]       = useState(true);
+  const [mostraForm, setMostraForm] = useState(false);
+
+  useEffect(() => {
+    if (!utente) return;
+    getDoc(doc(db, 'users', utente.uid, 'private', 'profilo_demografico'))
+      .then(snap => {
+        setProfDemo(snap.exists() ? snap.data() : null);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [utente?.uid]);
+
+  const salvaModifica = async (dati) => {
+    try {
+      await setDoc(doc(db, 'users', utente.uid, 'private', 'profilo_demografico'), {
+        ...dati,
+        uid:           utente.uid,
+        completato_il: profDemo?.completato_il || new Date().toISOString(),
+        versione_form: 1,
+      });
+      setProfDemo({ ...dati, uid: utente.uid });
+    } catch (err) {
+      console.error('Errore salvataggio demografico:', err);
+    } finally {
+      setMostraForm(false);
+    }
+  };
+
+  if (loading) return null;
+
+  if (mostraForm) return (
+    <div className="rounded-[20px] overflow-hidden"
+      style={{ border: `1px solid ${T.border}`, boxShadow: '0 4px 24px rgba(44,48,38,0.05)' }}>
+      <SchermataOnboardingDemografico
+        onConferma={salvaModifica}
+        onSalta={() => setMostraForm(false)}
+        precompilato={profDemo}
+      />
+    </div>
+  );
+
+  return (
+    <div className="rounded-[20px] p-5"
+      style={{ background: T.surface, border: `1px solid ${T.border}`, boxShadow: '0 4px 24px rgba(44,48,38,0.05)' }}>
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-xs font-medium uppercase tracking-wider" style={{ color: T.textSec }}>
+          Dati demografici
+        </h3>
+        <button onClick={() => setMostraForm(true)}
+          className="text-xs px-2.5 py-1 rounded-lg"
+          style={{ background: T.bg, color: T.primary, border: `1px solid ${T.border}` }}>
+          {profDemo ? 'Modifica' : 'Compila'}
+        </button>
+      </div>
+      {profDemo ? (
+        <div className="space-y-1">
+          {profDemo.fascia_eta && (
+            <p className="text-xs" style={{ color: T.textSec }}>
+              <span className="font-medium" style={{ color: T.textPrimary }}>Età:</span> {profDemo.fascia_eta}
+            </p>
+          )}
+          {profDemo.nucleo && (
+            <p className="text-xs" style={{ color: T.textSec }}>
+              <span className="font-medium" style={{ color: T.textPrimary }}>Nucleo:</span> {profDemo.nucleo}
+            </p>
+          )}
+          {profDemo.cap && (
+            <p className="text-xs" style={{ color: T.textSec }}>
+              <span className="font-medium" style={{ color: T.textPrimary }}>CAP:</span> {profDemo.cap}
+            </p>
+          )}
+          {profDemo.preferenze_dietetiche?.length > 0 && (
+            <p className="text-xs" style={{ color: T.textSec }}>
+              <span className="font-medium" style={{ color: T.textPrimary }}>Preferenze:</span>{' '}
+              {profDemo.preferenze_dietetiche.join(', ')}
+            </p>
+          )}
+          <p className="text-[10px] mt-2" style={{ color: T.textSec }}>
+            🔒 Dati condivisi solo in forma anonima e aggregata. Puoi modificarli o rimuoverli in qualsiasi momento.
+          </p>
+        </div>
+      ) : (
+        <div>
+          <p className="text-xs mb-3" style={{ color: T.textSec }}>
+            Aggiungi alcune informazioni opzionali per ricevere offerte più rilevanti e guadagnare +50pt.
+          </p>
+          <button onClick={() => setMostraForm(true)}
+            className="w-full py-3 rounded-[16px] text-sm font-medium transition-all active:scale-[0.98]"
+            style={{ background: '#EEF2E4', color: T.primary }}>
+            Compila e guadagna +50pt →
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const TabProfilo = () => {
   const { utente, profilo, logout, isLoggedIn, cambiaCittà, cittàAttiva, riavviaTutorial } = useAuth();
   const [sezione, setSezione] = useState('account'); // 'account' | 'attivita' | 'supermercati' | 'prodotti'
@@ -1896,6 +2266,9 @@ const TabProfilo = () => {
                 🌿 Riavvia il tutorial
               </button>
             </div>
+
+            {/* Dati demografici */}
+            <DatiDemograficiCard />
 
             {/* Città attiva — selettore */}
             <div className="rounded-[20px] p-5" style={{ background: T.surface, border: `1px solid ${T.border}`, boxShadow: '0 4px 24px rgba(44,48,38,0.05)' }}>
@@ -3102,7 +3475,7 @@ const ProductCardCompattaBase = ({ offerta, index = 0, segnalati, segnala, trend
           </div>
           {offerta.prezzo_kg && (
             <div className="text-[10px] leading-tight mt-0.5" style={{ color: T.textSec }}>
-              {formattaPrezzo(offerta.prezzo_kg)}/kg
+              {formattaPrezzo(offerta.prezzo_kg)}{etichettaUnitaPrezzo(offerta.grammatura)}
             </div>
           )}
           {/* Freccia andamento prezzo */}
@@ -6343,6 +6716,9 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk }) => {
   const [stato, setStato]               = useState('idle');
   const [puntiAnimati, setPuntiAnimati] = useState(0);
   const [prodottoInEdit, setProdottoInEdit] = useState(null); // indice prodotto in editing
+  // Suggerimenti nome prodotto: { [idx]: [{ nome, chiave, n, media, score, grammatura_comune }] }
+  const [suggerimentiNome, setSuggerimentiNome] = useState({});
+  const [loadingSugger,    setLoadingSugger]    = useState({});
   // C: modal condivisione community
   const [modalCondivisione, setModalCondivisione] = useState(null); // { prodottiSpecifici, prodottiAggregati, punti } | null
 
@@ -6370,6 +6746,65 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk }) => {
       nuovi[idx] = { ...nuovi[idx], [campo]: campo === 'prezzo_unitario' || campo === 'quantita' ? parseFloat(valore) || 0 : valore };
       return { ...prev, prodotti: nuovi };
     });
+  };
+
+  // Cerca suggerimenti nome in statistiche_prodotti quando l'utente apre l'edit
+  const cercaSuggerimentiNome = async (idx, nomeRaw) => {
+    if (!nomeRaw || nomeRaw.length < 3) return;
+    if (suggerimentiNome[idx] !== undefined) return; // già caricati
+
+    setLoadingSugger(prev => ({ ...prev, [idx]: true }));
+    try {
+      // Normalizzazione lato client (stessa logica del backend)
+      const normalizza = (s) => s.toLowerCase()
+        .replace(/\b(\d+(?:[.,]\d+)?)\s*(kg|g|gr|l|litri|litro|cl|ml|pz)\b/gi, '')
+        .replace(/\bal\s+(kg|litro|pezzo)\b/gi, '')
+        .replace(/[^\w\s]/g, ' ')
+        .replace(/\s+/g, ' ').trim();
+
+      const nomeBase = normalizza(nomeRaw);
+      const tokens   = nomeBase.split(' ').filter(t => t.length > 2);
+      if (!tokens.length) return;
+
+      // Legge i top 100 da statistiche_prodotti ordinati per n_globale
+      // e calcola Jaccard similarity lato client
+      const snap = await getDocs(query(
+        collection(db, 'statistiche_prodotti'),
+        orderBy('n_globale', 'desc'),
+        limit(100)
+      ));
+
+      const tokensSet = new Set(tokens);
+      const candidati = [];
+
+      snap.forEach(doc => {
+        const d   = doc.id.split('_'); // tokens della chiave
+        const dSet = new Set(d.filter(t => t.length > 1));
+        const inter = [...tokensSet].filter(t => dSet.has(t)).length;
+        const union = new Set([...tokensSet, ...dSet]).size;
+        if (union === 0 || inter === 0) return;
+        const score = inter / union;
+        if (score >= 0.3) {
+          const data = doc.data();
+          candidati.push({
+            nome:              data.nome_originale || doc.id.replace(/_/g, ' '),
+            chiave:            doc.id,
+            n:                 data.n_globale || 0,
+            media:             data.media_globale || 0,
+            grammatura_comune: data.grammatura_comune || '',
+            score,
+          });
+        }
+      });
+
+      candidati.sort((a, b) => b.score - a.score || b.n - a.n);
+      setSuggerimentiNome(prev => ({ ...prev, [idx]: candidati.slice(0, 3) }));
+    } catch (err) {
+      console.error('Errore suggerimenti:', err);
+      setSuggerimentiNome(prev => ({ ...prev, [idx]: [] }));
+    } finally {
+      setLoadingSugger(prev => ({ ...prev, [idx]: false }));
+    }
   };
 
   const rimuoviProdotto = (idx) => {
@@ -6843,6 +7278,60 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk }) => {
                   {prodottoInEdit === idx ? (
                     /* Pannello editing inline */
                     <div className="p-4 space-y-2.5" style={{ background: '#EEF2E4' }}>
+
+                      {/* ── Banner suggerimento nome ── */}
+                      {(loadingSugger[idx] || (suggerimentiNome[idx]?.length > 0)) && (
+                        <div className="rounded-xl px-3 py-2.5"
+                          style={{ background: '#EEF9E6', border: '1px solid #A3D977' }}>
+                          {loadingSugger[idx] ? (
+                            <div className="flex items-center gap-2">
+                              <Loader size={12} className="animate-spin" style={{ color: T.primary }} />
+                              <span className="text-xs" style={{ color: T.primary }}>
+                                Cerco nel database...
+                              </span>
+                            </div>
+                          ) : suggerimentiNome[idx]?.length > 0 ? (
+                            <div>
+                              <p className="text-xs font-semibold mb-2" style={{ color: T.primary }}>
+                                💡 Il nostro sistema ha rilevato che potrebbe essere:
+                              </p>
+                              <div className="space-y-1.5">
+                                {suggerimentiNome[idx].map((s, si) => (
+                                  <div key={si} className="flex items-center justify-between gap-2">
+                                    <div className="flex-1 min-w-0">
+                                      <span className="text-xs font-medium" style={{ color: T.textPrimary }}>
+                                        {s.nome}
+                                        {s.grammatura_comune ? ` ${s.grammatura_comune}` : ''}
+                                      </span>
+                                      <span className="text-[10px] ml-1.5" style={{ color: T.textSec }}>
+                                        · {s.n} prezzi · media {formattaPrezzo(s.media)}
+                                      </span>
+                                    </div>
+                                    <div className="flex gap-1.5 shrink-0">
+                                      <button
+                                        onClick={() => {
+                                          aggiornaProdotto(idx, 'nome_normalizzato',
+                                            s.nome + (s.grammatura_comune ? ` ${s.grammatura_comune}` : ''));
+                                          setSuggerimentiNome(prev => ({ ...prev, [idx]: [] }));
+                                        }}
+                                        className="px-2 py-1 rounded-lg text-[10px] font-semibold transition-all active:scale-[0.97]"
+                                        style={{ background: T.primary, color: '#fff' }}>
+                                        ✓ Sì
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              <button
+                                onClick={() => setSuggerimentiNome(prev => ({ ...prev, [idx]: [] }))}
+                                className="text-[10px] mt-1.5" style={{ color: T.textSec }}>
+                                No, inserisco manualmente
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+                      )}
+
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className="block text-[10px] uppercase font-medium mb-1" style={{ color: T.primary }}>Nome</label>
@@ -6919,7 +7408,10 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk }) => {
                     <div
                       className="flex items-center px-5 py-3 cursor-pointer transition-colors"
                       style={{ background: p.anomalia ? '#FFF8F0' : 'transparent' }}
-                      onClick={() => setProdottoInEdit(idx)}>
+                      onClick={() => {
+                        setProdottoInEdit(idx);
+                        cercaSuggerimentiNome(idx, p.nome_raw || p.nome_normalizzato);
+                      }}>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm truncate" style={{ color: T.textPrimary }}>
                           {p.nome_normalizzato || p.nome_raw || '—'}
@@ -7207,6 +7699,66 @@ function AppInterna() {
     return () => { mounted = false; };
   }, [utente, profilo, activeTab]);
 
+  // ─── Onboarding demografico (Sprint 1) ────────────────────────────────────
+  // mostraDemografico: true = mostra la schermata; null = non ancora caricato
+  const [mostraDemografico, setMostraDemografico] = useState(null);
+  const [profiloDemografico, setProfiloDemografico] = useState(null);
+
+  useEffect(() => {
+    if (!utente || !profilo) return;
+    // Mostra il form solo se l'onboarding supermercati è completato
+    // e non è già stato fatto il demografico
+    if (!preferenze?.onboarding_supermercati) return;
+    getDoc(doc(db, 'users', utente.uid, 'private', 'profilo_demografico'))
+      .then(snap => {
+        if (snap.exists()) {
+          setProfiloDemografico(snap.data());
+          setMostraDemografico(false);
+        } else {
+          setMostraDemografico(true);
+        }
+      })
+      .catch(() => setMostraDemografico(false));
+  }, [utente?.uid, profilo?.onboarding_completato, preferenze?.onboarding_supermercati]);
+
+  const completaOnboardingDemografico = async (dati) => {
+    if (!utente) return;
+    try {
+      const docRef = doc(db, 'users', utente.uid, 'private', 'profilo_demografico');
+      await setDoc(docRef, {
+        ...dati,
+        uid:           utente.uid,
+        completato_il: new Date().toISOString(),
+        versione_form: 1,
+      });
+      setProfiloDemografico({ ...dati, uid: utente.uid });
+      // Assegna +50 punti
+      const profiloRef = doc(db, 'users', utente.uid, 'private', 'profilo');
+      const profiloSnap = await getDoc(profiloRef);
+      if (profiloSnap.exists()) {
+        const puntiAttuali = profiloSnap.data().punti || 0;
+        await updateDoc(profiloRef, { punti: puntiAttuali + 50 });
+      }
+    } catch (err) {
+      console.error('Errore salvataggio demografico:', err);
+    } finally {
+      setMostraDemografico(false);
+    }
+  };
+
+  const saltaOnboardingDemografico = async () => {
+    if (!utente) return;
+    try {
+      // Salva doc vuoto per non riproporre il form al prossimo accesso
+      await setDoc(doc(db, 'users', utente.uid, 'private', 'profilo_demografico'), {
+        uid:           utente.uid,
+        completato_il: new Date().toISOString(),
+        versione_form: 1,
+      });
+    } catch (_) {}
+    setMostraDemografico(false);
+  };
+
   if (authLoading || loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center" style={{ background: T.bg }}>
@@ -7269,6 +7821,20 @@ function AppInterna() {
       <div className="w-full max-w-md mx-auto min-h-screen shadow-2xl relative" style={{ background: T.bg }}>
         <SchermataSelezioneSupermarket
           onConferma={completaOnboardingSupermercati}
+        />
+      </div>
+    );
+  }
+
+  // Step 3 onboarding: demografico opzionale (dopo supermercati, prima dell'app)
+  // mostraDemografico === null significa che stiamo ancora caricando il doc Firestore
+  if (utente && mostraDemografico === true) {
+    return (
+      <div className="w-full max-w-md mx-auto min-h-screen shadow-2xl relative" style={{ background: T.bg }}>
+        <SchermataOnboardingDemografico
+          onConferma={completaOnboardingDemografico}
+          onSalta={saltaOnboardingDemografico}
+          precompilato={profiloDemografico}
         />
       </div>
     );

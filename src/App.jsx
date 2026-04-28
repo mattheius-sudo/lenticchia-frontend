@@ -8106,10 +8106,21 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk, profiloDem
       const tuttiProdotti = estratto.prodotti || [];
 
       // Separa specifici da aggregati usando il flag _classe del backend.
-      const prodottiSpecifici = tuttiProdotti.filter(
-        p => !p._classe || p._classe === 'specifico'
+      // REGOLA: escludi tutto ciò che è esplicitamente 'aggregato' O che non ha
+      // un prezzo unitario reale (voce contabile senza prodotto identificabile)
+      const PATTERN_AGGREGATI = /\b(banco|reparto|gastronomia|vari|assortiti|misti|generico|altro|alimentari vari|articoli vari)\b/i;
+      const prodottiSpecifici = tuttiProdotti.filter(p =>
+        p._classe !== 'aggregato' &&
+        p.tipo_voce !== 'aggregato' &&
+        !PATTERN_AGGREGATI.test(p.nome_normalizzato || p.nome_raw || '') &&
+        (p.prezzo_unitario || 0) > 0
       );
-      const prodottiAggregati = tuttiProdotti.filter(p => p._classe === 'aggregato');
+      const prodottiAggregati = tuttiProdotti.filter(p =>
+        p._classe === 'aggregato' ||
+        p.tipo_voce === 'aggregato' ||
+        PATTERN_AGGREGATI.test(p.nome_normalizzato || p.nome_raw || '') ||
+        !(p.prezzo_unitario > 0)
+      );
 
       const tipoScontrino = scontrino.tipo_scontrino ||
         (prodottiSpecifici.length > 0 ? 'dettagliato' : 'generico');
@@ -8546,7 +8557,17 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk, profiloDem
                   Prodotti ({estratto.prodotti?.length || 0})
                 </p>
                 <p className="text-xs" style={{ color: T.textSec }}>
-                  Tocca per correggere
+                  {(() => {
+                    const nSpec = (estratto.prodotti || []).filter(p =>
+                      p._classe !== 'aggregato' && p.tipo_voce !== 'aggregato' &&
+                      !/\b(banco|reparto|gastronomia|vari|assortiti|misti|generico|alimentari vari|articoli vari)\b/i.test(p.nome_normalizzato || p.nome_raw || '') &&
+                      (p.prezzo_unitario > 0)
+                    ).length;
+                    const nAgg = (estratto.prodotti?.length || 0) - nSpec;
+                    return nAgg > 0
+                      ? `${nSpec} condivisibili · ${nAgg} aggregati`
+                      : 'Tocca per correggere';
+                  })()}
                 </p>
               </div>
 
@@ -8566,9 +8587,31 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk, profiloDem
                 </div>
               )}
 
-              {(estratto.prodotti || []).map((p, idx) => (
+              {/* ── Prodotti specifici (condivisibili) ── */}
+              {(estratto.prodotti || []).map((p, idx) => {
+                const isAggregato = p._classe === 'aggregato' || p.tipo_voce === 'aggregato' ||
+                  /\b(banco|reparto|gastronomia|vari|assortiti|misti|generico|alimentari vari|articoli vari)\b/i.test(p.nome_normalizzato || p.nome_raw || '') ||
+                  !(p.prezzo_unitario > 0);
+                return (
                 <div key={idx} style={{ borderTop: idx > 0 ? `1px solid ${T.border}` : 'none' }}>
-                  {prodottoInEdit === idx ? (
+                  {/* Aggregati — non interattivi, non condivisibili */}
+                  {isAggregato ? (
+                    <div className="flex items-center px-5 py-3 gap-3"
+                      style={{ background: T.bg, opacity: 0.7 }}>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm truncate" style={{ color: T.textSec }}>
+                          {p.nome_normalizzato || p.nome_raw || '—'}
+                        </p>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
+                          style={{ background: '#F3F4F6', color: '#6B7280' }}>
+                          📦 Voce aggregata — non condivisa
+                        </span>
+                      </div>
+                      <span className="text-sm shrink-0" style={{ color: T.textSec, fontFamily: "'Lora', serif" }}>
+                        {p.prezzo_unitario > 0 ? formattaPrezzo((p.prezzo_unitario || 0) * (p.quantita || 1)) : '—'}
+                      </span>
+                    </div>
+                  ) : prodottoInEdit === idx ? (
                     /* Pannello editing inline */
                     <div className="p-4 space-y-2.5" style={{ background: '#EEF2E4' }}>
 
@@ -8735,7 +8778,8 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk, profiloDem
                     </div>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* ── Azioni ── */}

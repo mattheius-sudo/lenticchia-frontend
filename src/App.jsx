@@ -4628,8 +4628,20 @@ const TabOfferte = ({ offerte, archivio = [], cittàAttiva = null, preferenze = 
         {/* ── VISTA NORMALE (sfoglia) ─────────────────────────────────────── */}
         {!searchOpen && vista === 'sfoglia' && (
           <>
+            {/* Empty state per utente loggato senza dati nella sua area */}
+            {offerte.length === 0 && isLoggedIn && (
+              <div className="px-4 pt-8">
+                <EmptyStateAzione
+                  emoji="🌱"
+                  titolo="Nessun volantino ancora nella tua area"
+                  sottotitolo={`Non abbiamo ancora raccolto offerte per la tua zona. Puoi aiutarci fotografando il volantino del tuo supermercato — o aspettare che arrivi il primo scraping.`}
+                  labelCta="Fotografa un volantino"
+                  onCta={() => document.dispatchEvent(new CustomEvent('lenticchia:goto', { detail: 'scontrino' }))}
+                />
+              </div>
+            )}
             {/* Sezione ⭐ Per te — solo se loggato con preferiti in offerta */}
-            {offertePreferite.length > 0 && (
+            {offerte.length > 0 && offertePreferite.length > 0 && (
               <div className="pt-5 pb-2">
                 <div className="flex items-center justify-between px-4 mb-3">
                   <h2 className="text-sm font-semibold" style={{ color: T.textPrimary }}>
@@ -4689,7 +4701,7 @@ const TabOfferte = ({ offerte, archivio = [], cittàAttiva = null, preferenze = 
             )}
 
             {/* Sezione ⏰ Scadono presto */}
-            {urgenti.length > 0 && (
+            {offerte.length > 0 && urgenti.length > 0 && (
               <div className={offertePreferite.length > 0 ? 'pt-2 pb-2' : 'pt-5 pb-2'}>
                 <div className="flex items-center justify-between px-4 mb-3">
                   <h2 className="text-sm font-semibold" style={{ color: T.textPrimary }}>
@@ -4733,7 +4745,7 @@ const TabOfferte = ({ offerte, archivio = [], cittàAttiva = null, preferenze = 
             )}
 
             {/* ── Lista principale offerte ─────────────────────────────── */}
-            <div className="px-4 pt-4">
+            {offerte.length > 0 && (<div className="px-4 pt-4">
               {/* Filtro testo inline */}
               <FiltroInline
                 value={filtroTestoOfferte}
@@ -4869,7 +4881,7 @@ const TabOfferte = ({ offerte, archivio = [], cittàAttiva = null, preferenze = 
                   </div>
                 );
               })()}
-            </div>
+            </div>)}
 
           </>
         )}
@@ -8820,10 +8832,19 @@ function AppInterna() {
         const tutteLeOfferte = [...offerteList, ...prezziRilevati];
 
         if (offerteList.length === 0 && prezziRilevati.length === 0) {
-          setOfferte(MOCK_OFFERTE); setStatoVolantini(MOCK_STATO); setIsDemoMode(true);
+          if (utente) {
+            // Utente loggato ma nessun dato: empty state onesto, niente mock
+            setOfferte([]);
+            setStatoVolantini(statoList);
+            setIsDemoMode(false);
+          } else {
+            // Utente anonimo: mostra demo per far vedere come funziona l'app
+            setOfferte(MOCK_OFFERTE); setStatoVolantini(MOCK_STATO); setIsDemoMode(true);
+          }
         } else {
           setOfferte(tutteLeOfferte);
           setStatoVolantini(statoList);
+          setIsDemoMode(false); // reset esplicito in caso di ricarica dopo demo
           // Cache solo le offerte volantino (i prezzi rilevati cambiano spesso)
           scriviCache(cacheKey, offerteList);
           scriviCache(cacheKeyStato, statoList);
@@ -8835,8 +8856,13 @@ function AppInterna() {
         // TODO Sprint 3: carica archivio lazy on-demand nella ProductCard
 
       } catch {
-        // Firestore non raggiungibile — usa mock
-        setOfferte(MOCK_OFFERTE); setStatoVolantini(MOCK_STATO); setIsDemoMode(true);
+        if (utente) {
+          // Utente loggato ma Firestore non raggiungibile — lista vuota, non demo
+          setOfferte([]); setStatoVolantini([]); setIsDemoMode(false);
+        } else {
+          // Anonimo offline — mostra demo
+          setOfferte(MOCK_OFFERTE); setStatoVolantini(MOCK_STATO); setIsDemoMode(true);
+        }
       } finally {
         setLoading(false);
       }

@@ -133,6 +133,30 @@ const getTileInsegna = (insegna) => {
   return key ? TILE_INSEGNE[key] : TILE_INSEGNE['default'];
 };
 
+// ─── FiltroInline — barra di ricerca compatta riusabile ──────────────────────
+// Usata in ogni lista lunga: offerte, prezzi, negozi, scontrini.
+// Props: value, onChange, placeholder, className
+const FiltroInline = ({ value, onChange, placeholder = 'Filtra...', style: extraStyle }) => (
+  <div className="flex items-center gap-2 px-3 py-2 rounded-2xl"
+    style={{ background: '#fff', border: `1.5px solid ${value ? T.primary : T.border}`,
+             transition: 'border-color 0.15s', ...extraStyle }}>
+    <Search size={14} strokeWidth={1.5} style={{ color: T.textSec, flexShrink: 0 }} />
+    <input
+      type="text"
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="flex-1 text-sm outline-none bg-transparent"
+      style={{ color: T.textPrimary }}
+    />
+    {value && (
+      <button onClick={() => onChange('')} style={{ color: T.textSec, flexShrink: 0, lineHeight: 0 }}>
+        <X size={14} strokeWidth={2} />
+      </button>
+    )}
+  </div>
+);
+
 // ─── Costanti ─────────────────────────────────────────────────────────────────
 
 // ── CAP → Quartiere (portato da CAP_ROMA_LOOKUP.py) ──────────────────────────
@@ -4095,9 +4119,8 @@ const ORDINAMENTI = [
 ];
 
 const VISTA_ITEMS = [
-  { id: 'sfoglia',    label: 'Offerte' },
-  { id: 'prezzi',     label: '🧾 Prezzi' },
-  { id: 'cerca',      label: 'Cerca' },
+  { id: 'sfoglia', label: 'Offerte' },
+  { id: 'prezzi',  label: '🧾 Prezzi' },
 ];
 
 const CATEGORIE_EMOJI = {
@@ -4118,6 +4141,9 @@ const TabOfferte = ({ offerte, archivio = [], cittàAttiva = null, preferenze = 
   const [searchOpen,     setSearchOpen]     = useState(false);
   const [searchQuery,    setSearchQuery]     = useState('');
   const [vista,          setVista]           = useState('sfoglia');
+  const [filtroTestoOfferte, setFiltroTestoOfferte] = useState('');
+  const [filtroTestoPrezzi,  setFiltroTestoPrezzi]  = useState('');
+  const cambiaVista = (id) => { setVista(id); setFiltroTestoOfferte(''); setFiltroTestoPrezzi(''); };
   const [catAttiva,      setCatAttiva]       = useState('tutte');
   const [filtroInsegna,  setFiltroInsegna]   = useState(null);
   const [infoInsegne,    setInfoInsegne]     = useState({});
@@ -4297,14 +4323,14 @@ const TabOfferte = ({ offerte, archivio = [], cittàAttiva = null, preferenze = 
           </div>
         </div>
 
-        {/* Selettore vista — Offerte / 🧾 Prezzi / Cerca */}
+        {/* Selettore vista — Offerte / 🧾 Prezzi */}
         {!searchOpen && (
           <div className="flex gap-1 px-4 pb-2">
             {VISTA_ITEMS.map(v => {
               const attiva = vista === v.id;
               return (
                 <button key={v.id}
-                  onClick={() => { setVista(v.id); if (v.id === 'cerca') { setSearchOpen(true); setTimeout(() => searchRef.current?.focus(), 80); } }}
+                  onClick={() => cambiaVista(v.id)}
                   className="flex-1 py-1.5 rounded-full text-xs font-semibold transition-all"
                   style={attiva
                     ? { background: T.primary, color: '#fff' }
@@ -4479,7 +4505,24 @@ const TabOfferte = ({ offerte, archivio = [], cittàAttiva = null, preferenze = 
             })()}
 
             {/* Lista prodotti */}
-            {prezziCommunity.length === 0 ? (
+            {(() => {
+              const q = filtroTestoPrezzi.toLowerCase().trim();
+              const listaPrezzi = (filtroInsegna
+                ? prezziCommunity.filter(p => p.insegna === filtroInsegna)
+                : prezziCommunity
+              ).filter(p => !q ||
+                (p.nome||'').toLowerCase().includes(q) ||
+                (p.marca||'').toLowerCase().includes(q) ||
+                (p.insegna||'').toLowerCase().includes(q));
+
+              return (<>
+              <FiltroInline
+                value={filtroTestoPrezzi}
+                onChange={setFiltroTestoPrezzi}
+                placeholder="Filtra per prodotto, marca, negozio…"
+                style={{ marginBottom: '12px' }}
+              />
+              {prezziCommunity.length === 0 ? (
               <div className="rounded-[20px] py-12 text-center"
                 style={{ background: T.surface, border: `1px dashed ${T.border}` }}>
                 <Receipt size={28} strokeWidth={1.2} className="mx-auto mb-3" style={{ color: T.textSec }} />
@@ -4490,14 +4533,16 @@ const TabOfferte = ({ offerte, archivio = [], cittàAttiva = null, preferenze = 
                   Carica il tuo primo scontrino — i prezzi appaiono qui dopo la verifica.
                 </p>
               </div>
+            ) : listaPrezzi.length === 0 ? (
+              <div className="rounded-[20px] py-10 text-center"
+                style={{ background: T.surface, border: `1px solid ${T.border}` }}>
+                <p className="text-sm" style={{ color: T.textSec }}>Nessun risultato per "{filtroTestoPrezzi}"</p>
+              </div>
             ) : (
               <div className="rounded-[20px] overflow-hidden"
                 style={{ background: T.surface, border: `1px solid #BAE6FD`,
                          boxShadow: '0 2px 16px rgba(3,105,161,0.06)' }}>
-                {(filtroInsegna
-                  ? prezziCommunity.filter(p => p.insegna === filtroInsegna)
-                  : prezziCommunity
-                ).map((p, i, arr) => (
+                {listaPrezzi.map((p, i, arr) => (
                   <div key={p.id || i}
                     className="px-4 py-3 flex items-center gap-3"
                     style={{ borderBottom: i < arr.length - 1 ? `1px solid ${T.border}` : 'none' }}>
@@ -4547,6 +4592,8 @@ const TabOfferte = ({ offerte, archivio = [], cittàAttiva = null, preferenze = 
                 ))}
               </div>
             )}
+            </>);
+            })()}
           </div>
         )}
 
@@ -4659,6 +4706,13 @@ const TabOfferte = ({ offerte, archivio = [], cittàAttiva = null, preferenze = 
 
             {/* ── Lista principale offerte ─────────────────────────────── */}
             <div className="px-4 pt-4">
+              {/* Filtro testo inline */}
+              <FiltroInline
+                value={filtroTestoOfferte}
+                onChange={setFiltroTestoOfferte}
+                placeholder="Filtra per nome, marca, negozio…"
+                style={{ marginBottom: '12px' }}
+              />
               {/* Intestazione lista */}
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-sm font-semibold" style={{ color: T.textPrimary }}>
@@ -4750,28 +4804,37 @@ const TabOfferte = ({ offerte, archivio = [], cittàAttiva = null, preferenze = 
                     Nessuna offerta {catAttiva !== 'tutte' ? 'in questa categoria' : ''}{filtroInsegna ? ` da ${filtroInsegna}` : ''} questa settimana
                   </p>
                 </div>
-              ) : (
-                <div className="rounded-[20px] overflow-hidden"
-                  style={{ background: T.surface, border: `1px solid ${T.border}`,
-                           boxShadow: '0 2px 16px rgba(44,48,38,0.05)' }}>
-                  {offerteFiltrate.map((o, i) => (
-                    <div key={o.id||i} className="relative">
-                      {/* Badge ⭐ se è un preferito */}
-                      {idPreferite.has(o.id) && (
-                        <span className="absolute top-2 right-10 z-10 text-[10px] font-bold"
-                          style={{ color: T.primary }}>
-                          ⭐
-                        </span>
-                      )}
-                      <ProductCardCompatta
-                        offerta={o} index={i}
-                        segnalati={segnalati} segnala={segnala}
-                        trend={calcolaTrend(o)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
+              ) : (() => {
+                const q = filtroTestoOfferte.toLowerCase().trim();
+                const lista = q
+                  ? offerteFiltrate.filter(o =>
+                      (o.nome||'').toLowerCase().includes(q) ||
+                      (o.marca||'').toLowerCase().includes(q) ||
+                      (o.insegna||'').toLowerCase().includes(q))
+                  : offerteFiltrate;
+                if (lista.length === 0) return (
+                  <div className="rounded-[20px] py-10 text-center"
+                    style={{ background: T.surface, border: `1px solid ${T.border}` }}>
+                    <p className="text-sm" style={{ color: T.textSec }}>Nessun risultato per "{filtroTestoOfferte}"</p>
+                  </div>
+                );
+                return (
+                  <div className="rounded-[20px] overflow-hidden"
+                    style={{ background: T.surface, border: `1px solid ${T.border}`,
+                             boxShadow: '0 2px 16px rgba(44,48,38,0.05)' }}>
+                    {lista.map((o, i) => (
+                      <div key={o.id||i} className="relative">
+                        {idPreferite.has(o.id) && (
+                          <span className="absolute top-2 right-10 z-10 text-[10px] font-bold"
+                            style={{ color: T.primary }}>⭐</span>
+                        )}
+                        <ProductCardCompatta offerta={o} index={i}
+                          segnalati={segnalati} segnala={segnala} trend={calcolaTrend(o)} />
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
 
           </>
@@ -6433,6 +6496,7 @@ const PannelloInfoInsegna = ({ insegna, città }) => {
 const TabSupermercati = ({ offerte, statoVolantini }) => {
   const [selectedInsegna, setSelectedInsegna] = useState(null);
   const [infoaperta, setInfoAperta] = useState(false);
+  const [filtroNegozi, setFiltroNegozi] = useState('');
   const { segnalati, segnala } = useSegnalazioniStore();
   const { cittàAttiva } = useAuth();
 
@@ -6485,13 +6549,20 @@ const TabSupermercati = ({ offerte, statoVolantini }) => {
 
   return (
     <div className="flex flex-col h-full pb-28" style={{ background: T.bg }}>
-      <div className="px-5 pt-8 pb-5 safe-top sticky top-0 z-10" style={{ background: 'rgba(249,248,244,0.85)', backdropFilter: 'blur(12px)', borderBottom: `1px solid ${T.border}` }}>
+      <div className="px-5 pt-8 pb-4 safe-top sticky top-0 z-10" style={{ background: 'rgba(249,248,244,0.85)', backdropFilter: 'blur(12px)', borderBottom: `1px solid ${T.border}` }}>
         <h2 style={{ fontFamily: "'Lora', serif", fontSize: '22px', fontWeight: 500, color: T.textPrimary }}>Negozi</h2>
-        <p className="text-sm mt-1" style={{ color: T.textSec }}>Sfoglia per insegna.</p>
+        <p className="text-sm mt-1 mb-3" style={{ color: T.textSec }}>Sfoglia per insegna.</p>
+        <FiltroInline
+          value={filtroNegozi}
+          onChange={setFiltroNegozi}
+          placeholder="Filtra negozi…"
+        />
       </div>
       <div className="p-4 overflow-y-auto flex-1">
         <div className="grid grid-cols-2 gap-3">
-          {statoVolantini.map(stato => (
+          {statoVolantini
+            .filter(s => !filtroNegozi || (s.insegna||'').toLowerCase().includes(filtroNegozi.toLowerCase()))
+            .map(stato => (
             <button key={stato.id} onClick={() => setSelectedInsegna(stato.insegna)}
               className={`flex flex-col items-center justify-center p-5 rounded-[20px] h-32 active:scale-95 transition-all ${getTileInsegna(stato.insegna)}`}
               style={{ boxShadow: '0 4px 16px rgba(44,48,38,0.1)' }}>
@@ -6664,10 +6735,10 @@ const RisparmioCumulato = ({ uid }) => {
 
 const TabSpese = ({ scontriniReali = [], dataLoaded = false }) => {
   const { utente } = useAuth();
-  // Usa scontrini reali se il fetch è completato e ci sono dati.
-  // Se non ancora caricato, non mostrare demo (evita flash).
   const isDemo = dataLoaded && scontriniReali.length === 0;
   const scontrini = (dataLoaded && scontriniReali.length > 0) ? scontriniReali : (isDemo ? MOCK_SCONTRINI : []);
+
+  const [filtroScontrini, setFiltroScontrini] = useState('');
 
   // Sprint 2: modal drill-down scontrino con editing prodotti
   const [modalScontrino, setModalScontrino]         = useState(null);
@@ -7340,34 +7411,55 @@ const TabSpese = ({ scontriniReali = [], dataLoaded = false }) => {
             <h3 className="text-sm font-medium" style={{ color: T.textPrimary }}>Scontrini recenti</h3>
             <CreditCard size={16} strokeWidth={1.5} style={{ color: T.textSec }} />
           </div>
-          {scontrini.slice(0, 6).map((s, i) => {
-            const d = new Date(s.data_acquisto);
-            const dataFmt = d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' });
-            const nProd = s.prodotti?.length || 0;
-            return (
-              <div key={s.id}
-                className="flex items-center px-5 py-3.5 active:bg-stone-50 transition-colors cursor-pointer"
-                style={{ borderTop: i > 0 ? `1px solid ${T.border}` : 'none' }}
-                onClick={() => apriModalScontrino(s)}>
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mr-3"
-                  style={{ background: '#EEF2E4' }}>
-                  <Receipt size={16} strokeWidth={1.5} style={{ color: T.primary }} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium" style={{ color: T.textPrimary }}>{s.insegna}</p>
-                  <p className="text-xs mt-0.5" style={{ color: T.textSec }}>
-                    {dataFmt} · {nProd} prodott{nProd === 1 ? 'o' : 'i'}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold shrink-0" style={{ color: T.textPrimary, fontFamily: "'Lora', serif" }}>
-                    {formattaPrezzo(s.totale_scontrino)}
-                  </p>
-                  <ChevronRight size={14} strokeWidth={1.5} style={{ color: T.textSec }} />
-                </div>
+          <div className="px-5 pb-3">
+            <FiltroInline
+              value={filtroScontrini}
+              onChange={setFiltroScontrini}
+              placeholder="Filtra per negozio o prodotto…"
+            />
+          </div>
+          {(() => {
+            const q = filtroScontrini.toLowerCase().trim();
+            const lista = scontrini
+              .filter(s => !q ||
+                (s.insegna||'').toLowerCase().includes(q) ||
+                (s.prodotti||[]).some(p => (p.nome_normalizzato||p.nome||'').toLowerCase().includes(q))
+              )
+              .slice(0, 20);
+            if (lista.length === 0 && scontrini.length > 0) return (
+              <div className="px-5 pb-5 text-center">
+                <p className="text-sm" style={{ color: T.textSec }}>Nessun risultato per "{filtroScontrini}"</p>
               </div>
             );
-          })}
+            return lista.map((s, i) => {
+              const d = new Date(s.data_acquisto);
+              const dataFmt = d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' });
+              const nProd = s.prodotti?.length || 0;
+              return (
+                <div key={s.id}
+                  className="flex items-center px-5 py-3.5 active:bg-stone-50 transition-colors cursor-pointer"
+                  style={{ borderTop: i > 0 ? `1px solid ${T.border}` : 'none' }}
+                  onClick={() => apriModalScontrino(s)}>
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mr-3"
+                    style={{ background: '#EEF2E4' }}>
+                    <Receipt size={16} strokeWidth={1.5} style={{ color: T.primary }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium" style={{ color: T.textPrimary }}>{s.insegna}</p>
+                    <p className="text-xs mt-0.5" style={{ color: T.textSec }}>
+                      {dataFmt} · {nProd} prodott{nProd === 1 ? 'o' : 'i'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold shrink-0" style={{ color: T.textPrimary, fontFamily: "'Lora', serif" }}>
+                      {formattaPrezzo(s.totale_scontrino)}
+                    </p>
+                    <ChevronRight size={14} strokeWidth={1.5} style={{ color: T.textSec }} />
+                  </div>
+                </div>
+              );
+            });
+          })()}
           {scontrini.length === 0 && (
             <div className="px-5 pb-5 text-center">
               <Wallet size={32} strokeWidth={1.2} className="mx-auto mb-3" style={{ color: T.textSec }} />
@@ -8470,75 +8562,6 @@ function AppInterna() {
   const [swUpdateAvailable, setSwUpdateAvailable]     = useState(false);
   const [nVolantiniDaRevisare, setNVolantiniDaRevisare] = useState(0);
 
-  // ── prezziCommunity: aggrega scontrini personali + dati pubblici ────────────
-  // Fonti: spese_personali/{uid}/scontrini (sempre) + prezzi_scontrini (condivisi)
-  // Risultato: prodotti deduplicati per nome+insegna con prezzo medio e campioni
-  const prezziCommunity = useMemo(() => {
-    const capUtente       = profiloDemografico?.cap || null;
-    const quartiereUtente = capAQuartiere(capUtente);
-    const aggMap = new Map();
-    const aggiungiScontrino = (scontrino) => {
-      // Filtro geografico — dal più preciso al più generico:
-      // 1. Stesso quartiere (da lookup CAP→quartiere) → zona camminabile
-      // 2. Stessa città → fallback per doc vecchi senza CAP / fuori lookup
-      // Doc senza né cap né città → passano (cold start)
-      if (scontrino.cap) {
-        if (!capUtente) return; // utente senza CAP: non filtrare per zona
-        const quartiereDoc = capAQuartiere(scontrino.cap);
-        // Se entrambi risolvono in un quartiere noto: match su quartiere
-        if (quartiereDoc && quartiereUtente) {
-          if (quartiereDoc !== quartiereUtente) return;
-        } else {
-          // Almeno uno non è in lookup: fallback su CAP esatto
-          if (scontrino.cap !== capUtente) return;
-        }
-      } else if (scontrino.città && cittàAttiva) {
-        if (scontrino.città !== cittàAttiva) return;
-      }
-      const insegna = scontrino.insegna || '';
-      const dataAcq = scontrino.data_acquisto || '';
-      (scontrino.prodotti || []).forEach(p => {
-        const nome = p.nome_normalizzato || p.nome || '';
-        const prezzo = p.prezzo_unitario ?? p.prezzo ?? 0;
-        if (!nome || !prezzo || prezzo <= 0) return;
-        if (p.tipo_voce === 'aggregato') return;
-        const chiave = `${nome.toLowerCase().trim()}__${insegna.toLowerCase()}`;
-        const prev = aggMap.get(chiave);
-        if (prev) {
-          prev.prezzi.push(prezzo);
-          if (dataAcq > prev.ultima_data) {
-            prev.ultimo_prezzo = prezzo;
-            prev.ultima_data   = dataAcq;
-          }
-        } else {
-          aggMap.set(chiave, {
-            id:            `community_${chiave}`,
-            nome,
-            marca:         p.marca || null,
-            grammatura:    p.formato || p.grammatura || null,
-            insegna,
-            categoria:     p.categoria_l1 || p.categoria || 'altro',
-            prezzi:        [prezzo],
-            ultimo_prezzo: prezzo,
-            ultima_data:   dataAcq,
-          });
-        }
-      });
-    };
-    // 1. Scontrini personali (sempre disponibili se loggato)
-    scontriniUtente.forEach(aggiungiScontrino);
-    // 2. Scontrini pubblici condivisi (deduplicati per chiave — già presenti sopra vengono aggiornati)
-    prezziSnapshotPubblici.forEach(aggiungiScontrino);
-
-    return [...aggMap.values()]
-      .map(v => ({
-        ...v,
-        n_campioni:   v.prezzi.length,
-        prezzo_media: v.prezzi.reduce((a, b) => a + b, 0) / v.prezzi.length,
-      }))
-      .sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
-  }, [scontriniUtente, prezziSnapshotPubblici, cittàAttiva, profiloDemografico]);
-
   // Ascolta l'evento di aggiornamento del Service Worker
   useEffect(() => {
     const onSwUpdate = () => setSwUpdateAvailable(true);
@@ -8788,6 +8811,53 @@ function AppInterna() {
   // mostraDemografico: true = mostra la schermata; null = non ancora caricato
   const [mostraDemografico, setMostraDemografico] = useState(null);
   const [profiloDemografico, setProfiloDemografico] = useState(null);
+
+  // ── prezziCommunity: aggrega scontrini personali + dati pubblici ────────────
+  // Qui dopo profiloDemografico per evitare ReferenceError (const no hoisting)
+  const prezziCommunity = useMemo(() => {
+    const capUtente       = profiloDemografico?.cap || null;
+    const quartiereUtente = capAQuartiere(capUtente);
+    const aggMap = new Map();
+    const aggiungiScontrino = (scontrino) => {
+      if (scontrino.cap) {
+        if (!capUtente) return;
+        const quartiereDoc = capAQuartiere(scontrino.cap);
+        if (quartiereDoc && quartiereUtente) {
+          if (quartiereDoc !== quartiereUtente) return;
+        } else {
+          if (scontrino.cap !== capUtente) return;
+        }
+      } else if (scontrino.città && cittàAttiva) {
+        if (scontrino.città !== cittàAttiva) return;
+      }
+      const insegna = scontrino.insegna || '';
+      const dataAcq = scontrino.data_acquisto || '';
+      (scontrino.prodotti || []).forEach(p => {
+        const nome   = p.nome_normalizzato || p.nome || '';
+        const prezzo = p.prezzo_unitario ?? p.prezzo ?? 0;
+        if (!nome || !prezzo || prezzo <= 0) return;
+        if (p.tipo_voce === 'aggregato') return;
+        const chiave = `${nome.toLowerCase().trim()}__${insegna.toLowerCase()}`;
+        const prev = aggMap.get(chiave);
+        if (prev) {
+          prev.prezzi.push(prezzo);
+          if (dataAcq > prev.ultima_data) { prev.ultimo_prezzo = prezzo; prev.ultima_data = dataAcq; }
+        } else {
+          aggMap.set(chiave, {
+            id: `community_${chiave}`, nome,
+            marca: p.marca || null, grammatura: p.formato || p.grammatura || null,
+            insegna, categoria: p.categoria_l1 || p.categoria || 'altro',
+            prezzi: [prezzo], ultimo_prezzo: prezzo, ultima_data: dataAcq,
+          });
+        }
+      });
+    };
+    scontriniUtente.forEach(aggiungiScontrino);
+    prezziSnapshotPubblici.forEach(aggiungiScontrino);
+    return [...aggMap.values()]
+      .map(v => ({ ...v, n_campioni: v.prezzi.length, prezzo_media: v.prezzi.reduce((a,b)=>a+b,0)/v.prezzi.length }))
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
+  }, [scontriniUtente, prezziSnapshotPubblici, cittàAttiva, profiloDemografico]);
 
   useEffect(() => {
     if (!utente || !profilo) return;

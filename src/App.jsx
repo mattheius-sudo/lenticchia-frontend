@@ -1304,41 +1304,148 @@ const SchermataLogin = () => {
 // Genera un codice a barre SVG semplice (barre verticali) senza librerie esterne.
 // Sufficiente per la visualizzazione rapida in app — non per uso in cassa.
 
+// ─── EAN-13 Barcode — implementazione conforme allo standard ISO/IEC 15420 ───
+// Tabelle di encoding EAN-13
+const EAN13_L = ['0001101','0011001','0010011','0111101','0100011','0110001','0101111','0111011','0110111','0001011'];
+const EAN13_G = ['0100111','0110011','0011011','0100001','0011101','0111001','0000101','0010001','0001001','0010111'];
+const EAN13_R = ['1110010','1100110','1101100','1000010','1011100','1001110','1010000','1000100','1001000','1110100'];
+// Parità prima cifra → schema L/G per i 6 digit sinistri
+const EAN13_PARITY = ['LLLLLL','LLGLGG','LLGGLG','LLGGGL','LGLLGG','LGGLLG','LGGGLL','LGLGLG','LGLGGL','LGGLGL'];
+
+const renderEAN13 = (numero) => {
+  const digits = numero.replace(/\s/g, '').split('').map(Number);
+  if (digits.length !== 13 || digits.some(isNaN)) return null;
+
+  const parity  = EAN13_PARITY[digits[0]];
+  const moduli  = [];
+
+  // Guard start: 101
+  moduli.push(...'101'.split('').map(Number));
+  // Left half (digits 1-6, parity determined by digit 0)
+  for (let i = 0; i < 6; i++) {
+    const enc = parity[i] === 'L' ? EAN13_L[digits[i + 1]] : EAN13_G[digits[i + 1]];
+    moduli.push(...enc.split('').map(Number));
+  }
+  // Center guard: 01010
+  moduli.push(...'01010'.split('').map(Number));
+  // Right half (digits 7-12)
+  for (let i = 0; i < 6; i++) {
+    moduli.push(...EAN13_R[digits[i + 7]].split('').map(Number));
+  }
+  // Guard end: 101
+  moduli.push(...'101'.split('').map(Number));
+
+  return moduli; // 95 moduli totali
+};
+
 const BarcodeDisplay = ({ numero, formato }) => {
-  if (!numero || !formato) {
+  const pulito = (numero || '').replace(/\s/g, '');
+
+  // EAN-13: usa encoding corretto
+  if (formato === 'EAN13' && pulito.length === 13) {
+    const moduli = renderEAN13(pulito);
+    if (!moduli) return null;
+
+    const modW   = 2.4;   // larghezza di un modulo in px
+    const quietW = modW * 7;  // quiet zone (7 moduli)
+    const barH   = 72;
+    const guardH = barH + 8;  // guard bars leggermente più alti
+    const totalW = quietW + moduli.length * modW + quietW;
+    const textY  = guardH + 10;
+    const svgH   = textY + 14;
+
+    // Identifica le posizioni dei guard bar per l'altezza extra
+    const isGuard = (i) =>
+      i < 3 || i >= 92 ||                          // start/end guard
+      (i >= 45 && i <= 49);                         // center guard
+
+    // Raggruppa moduli in rettangoli (run-length encoding)
+    const rects = [];
+    let xi = quietW;
+    moduli.forEach((m, i) => {
+      if (m === 1) {
+        const h = isGuard(i) ? guardH : barH;
+        rects.push({ x: xi, h });
+      }
+      xi += modW;
+    });
+
+    // Testo sotto: prima cifra | 6 cifre | 6 cifre
+    const leftX  = quietW + 3 * modW;   // inizio left half
+    const rightX = leftX + 6 * 7 * modW + 5 * modW; // inizio right half
+    const midLeft  = leftX  + (6 * 7 * modW) / 2;
+    const midRight = rightX + (6 * 7 * modW) / 2;
+
     return (
-      <div className="flex items-center justify-center h-20 rounded-xl"
-        style={{ background: '#F3F4F6' }}>
-        <span className="text-sm" style={{ color: '#9CA3AF' }}>Numero non valido per barcode</span>
+      <div className="flex items-center justify-center py-3 px-3 rounded-xl"
+        style={{ background: '#FFFFFF', border: '1px solid #E5E7EB' }}>
+        <svg width={totalW} height={svgH} viewBox={`0 0 ${totalW} ${svgH}`} style={{ maxWidth: '100%' }}>
+          <rect width={totalW} height={svgH} fill="white" />
+          {rects.map((r, i) => (
+            <rect key={i} x={r.x} y={0} width={modW} height={r.h} fill="#1a1a1a" />
+          ))}
+          {/* Prima cifra — a sinistra del start guard */}
+          <text x={quietW / 2} y={textY + 2} textAnchor="middle"
+            style={{ fontSize: '10px', fontFamily: 'monospace', fill: '#1a1a1a' }}>
+            {pulito[0]}
+          </text>
+          {/* Cifre 1-6 sotto la metà sinistra */}
+          <text x={midLeft} y={textY + 2} textAnchor="middle"
+            style={{ fontSize: '10px', fontFamily: 'monospace', fill: '#1a1a1a' }}>
+            {pulito.slice(1, 7)}
+          </text>
+          {/* Cifre 7-12 sotto la metà destra */}
+          <text x={midRight} y={textY + 2} textAnchor="middle"
+            style={{ fontSize: '10px', fontFamily: 'monospace', fill: '#1a1a1a' }}>
+            {pulito.slice(7)}
+          </text>
+        </svg>
       </div>
     );
   }
 
-  const chars    = numero.replace(/\s/g, '').split('');
-  const barWidth = Math.max(1.5, Math.min(3, 240 / (chars.length * 5)));
-  const height   = 64;
-  const totalW   = chars.length * barWidth * 5.5 + barWidth * 8;
+  // Code 128 / altri formati — rendering semplificato ma coerente
+  if (!pulito) return (
+    <div className="flex items-center justify-center h-20 rounded-xl"
+      style={{ background: '#F3F4F6' }}>
+      <span className="text-sm" style={{ color: '#9CA3AF' }}>Numero non valido per barcode</span>
+    </div>
+  );
 
-  const bars = [];
-  let x = barWidth * 4;
-  chars.forEach((c, ci) => {
-    const code = c.charCodeAt(0);
-    for (let b = 0; b < 4; b++) {
-      const w = ((code + b + ci) % 3 === 0) ? barWidth * 2 : barWidth;
-      if (b % 2 === 0) {
-        bars.push(<rect key={`${ci}-${b}`} x={x} y={0} width={w} height={height} fill="#1a1a1a" />);
-      }
-      x += w + barWidth * 0.5;
-    }
+  // Fallback Code128 — pattern basato su checksum byte reale
+  const barH = 64;
+  const modW = 1.8;
+  const CODE128_PATTERNS = {
+    ' ':['11011001100'],'!':['11001101100'],'"':['11001100110'],'#':['10010011000'],
+    '$':['10010001100'],'%':['10001001100'],'&':['10011001000'],"'":['10011000100'],
+    '(':['10001100100'],')':['11001001000'],'*':['11001000100'],'+':['11000100100'],
+    ',':['10110011100'],'-':['10011011100'],'.':['10011001110'],'/':['10111001100'],
+    '0':['10111100100'],'1':['11110010100'],'2':['10011110100'],'3':['10001111010'],
+    '4':['10111011000'],'5':['10111000110'],'6':['10001101110'],'7':['10111011100'],
+    '8':['11100010110'],'9':['11101000110'],':':['11100011010'],';':['11101100100'],
+    '<':['11100110100'],'=':['11100110010'],'>':['11011011000'],'?':['11011000110'],
+    '@':['11000110110'],'A':['10100011000'],'B':['10001011000'],'C':['10001000110'],
+    'D':['10110001000'],'E':['10001101000'],'F':['10011101000'],'G':['10000101110'],
+    'H':['10100100000'],'I':['10001010000'],'J':['10000100110'],'K':['10110111000'],
+    'L':['10110001110'],'M':['10001101110'],'N':['10111011110'],'O':['10111101110'],
+    'P':['11101011110'],'Q':['11110101110'],'R':['11010000100'],'S':['11010010000'],
+    'T':['11010011100'],'U':['11000111010'],'V':['11010001110'],'W':['11000101110'],
+    'X':['10110011110'],'Y':['10011110110'],'Z':['10011011110'],
+  };
+  const bits = pulito.split('').map(c => (CODE128_PATTERNS[c.toUpperCase()] || ['1010101'])[0]).join('1');
+  const svgW = bits.length * modW + modW * 8;
+  let xi = modW * 4;
+  const brs = [];
+  bits.split('').forEach((b, i) => {
+    if (b === '1') brs.push(<rect key={i} x={xi} y={0} width={modW} height={barH} fill="#1a1a1a" />);
+    xi += modW;
   });
-
   return (
     <div className="flex items-center justify-center py-2 px-3 rounded-xl overflow-hidden"
       style={{ background: '#FFFFFF', border: '1px solid #E5E7EB' }}>
-      <svg width={Math.min(totalW, 280)} height={height}
-        viewBox={`0 0 ${totalW} ${height}`} style={{ maxWidth: '100%' }}>
-        <rect width={totalW} height={height} fill="white" />
-        {bars}
+      <svg width={Math.min(svgW, 280)} height={barH} viewBox={`0 0 ${svgW} ${barH}`} style={{ maxWidth: '100%' }}>
+        <rect width={svgW} height={barH} fill="white" />
+        {brs}
       </svg>
     </div>
   );

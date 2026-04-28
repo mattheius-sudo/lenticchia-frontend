@@ -3180,7 +3180,6 @@ const TabScontrino = ({ onApriRevisione = null }) => {
           collection(db, 'coda_scontrini'),
           where('uid', '==', utente.uid),
           where('stato', '==', 'in_attesa'),
-          orderBy('data_caricamento', 'desc'),
           limit(10)
         );
         const snap = await getDocs(q);

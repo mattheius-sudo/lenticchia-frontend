@@ -9066,7 +9066,12 @@ function AppInterna() {
   };
 
   const invalidaCache = () => {
-    // Chiamata dallo scraper via Firestore trigger (futuro) o manualmente
+    // Rimuove tutte le varianti della cache (global + per città)
+    ['global', 'Roma', 'Mantova'].forEach(città => {
+      localStorage.removeItem(`lenticchia_cache_offerte_${città}`);
+      localStorage.removeItem(`lenticchia_cache_stato_${città}`);
+    });
+    // Compatibilità con chiavi vecchio formato
     localStorage.removeItem('lenticchia_cache_offerte');
     localStorage.removeItem('lenticchia_cache_stato');
   };
@@ -9213,12 +9218,11 @@ function AppInterna() {
         // l'utente non riapre l'app dopo il giovedì (quando lo caricheremo lazy)
         // TODO Sprint 3: carica archivio lazy on-demand nella ProductCard
 
-      } catch {
+      } catch (err) {
+        console.error('❌ fetchData error:', err?.code, err?.message, err);
         if (utente) {
-          // Utente loggato ma Firestore non raggiungibile — lista vuota, non demo
           setOfferte([]); setStatoVolantini([]); setIsDemoMode(false);
         } else {
-          // Anonimo offline — mostra demo
           setOfferte(MOCK_OFFERTE); setStatoVolantini(MOCK_STATO); setIsDemoMode(true);
         }
       } finally {

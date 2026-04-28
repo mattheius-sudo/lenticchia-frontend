@@ -3849,7 +3849,8 @@ const ProductCardCompattaBase = ({ offerta, index = 0, segnalati, segnala, trend
   const ggFa = offerta.data_scansione
     ? Math.floor((Date.now() - new Date(offerta.data_scansione).getTime()) / 86400000)
     : null;
-  const isFotoUtente = offerta.fonte === 'foto_utente';
+  const isFotoUtente   = offerta.fonte === 'foto_utente';
+  const isPrezzoReale  = offerta.fonte === 'scontrino';  // da statistiche_prodotti
   const haAllarme = segnalazioniN >= 1 || (isFotoUtente && conferme < 2);
 
   return (
@@ -3918,16 +3919,40 @@ const ProductCardCompattaBase = ({ offerta, index = 0, segnalati, segnala, trend
           ) : giorni >= 0 && (
             <span className="text-[10px]" style={{ color: T.textSec }}>{giorni}gg</span>
           )}
-          {segnalati && segnala && offerta.id && (
+          {segnalati && segnala && offerta.id && !isPrezzoReale && (
             <BottoneSegnala docId={offerta.id} collectionName="offerte_attive"
               segnalati={segnalati} segnala={segnala} />
           )}
-          {offerta.id && <BotoneModifica offerta={offerta} />}
+          {offerta.id && !isPrezzoReale && <BotoneModifica offerta={offerta} />}
         </div>
       </div>
 
+      {/* Badge prezzo rilevato da scontrino */}
+      {isPrezzoReale && (
+        <div className="mt-1.5 flex items-center gap-2">
+          <span className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
+            style={{ background: '#F0F9FF', color: '#0369A1', border: '1px solid #BAE6FD' }}>
+            🧾 Prezzo rilevato
+          </span>
+          {offerta.n_campioni && (
+            <span className="text-[10px]" style={{ color: T.textSec }}>
+              da {offerta.n_campioni} {offerta.n_campioni === 1 ? 'scontrino' : 'scontrini'}
+            </span>
+          )}
+          {offerta.data_rilevazione && (
+            <span className="text-[10px]" style={{ color: T.textSec }}>
+              · {(() => {
+                const d = new Date(offerta.data_rilevazione);
+                const gg = Math.floor((Date.now() - d.getTime()) / 86400000);
+                return gg === 0 ? 'oggi' : gg === 1 ? 'ieri' : `${gg}gg fa`;
+              })()}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Trust bar — solo per offerte da foto utente o con segnalazioni */}
-      {(isFotoUtente || segnalazioniN > 0 || conferme > 0) && (
+      {!isPrezzoReale && (isFotoUtente || segnalazioniN > 0 || conferme > 0) && (
         <div className="mt-2 flex items-center justify-between">
           {/* Sinistra: source + conferme */}
           <div className="flex items-center gap-2 flex-wrap">
@@ -7155,8 +7180,12 @@ const TabSpese = ({ scontriniReali = [], dataLoaded = false }) => {
         <div className="fixed inset-0 z-50 flex flex-col" style={{ background: T.bg }}>
 
           {/* Header */}
-          <div className="px-5 pt-10 pb-4 flex items-center gap-3 shrink-0"
-            style={{ background: T.primary, boxShadow: '0 2px 12px rgba(44,48,38,0.15)' }}>
+          <div className="px-5 pb-4 flex items-center gap-3 shrink-0"
+            style={{
+              background: T.primary,
+              boxShadow: '0 2px 12px rgba(44,48,38,0.15)',
+              paddingTop: 'max(40px, env(safe-area-inset-top, 40px))',
+            }}>
             <button onClick={chiudiModal} className="w-9 h-9 rounded-xl flex items-center justify-center"
               style={{ background: 'rgba(255,255,255,0.15)' }}>
               <X size={18} strokeWidth={2} style={{ color: '#fff' }} />
@@ -8317,28 +8346,64 @@ function AppInterna() {
 
       // ── 2. Cache mancante o scaduta — legge da Firestore ─────────────────
       try {
-        // Carica TUTTE le offerte — il filtro città è fatto lato client in offerteDedup.
-        // Motivo: il campo 'città' sulle offerte dello scraper potrebbe non essere
-        // valorizzato su tutti i documenti, causando 0 risultati con where().
-        // Il filtro lato client in offerteDedup gestisce correttamente entrambi i casi.
-        const [offerteSnapshot, statoSnapshot] = await Promise.all([
+        // Carica offerte attive + statistiche prodotti in parallelo
+        const [offerteSnapshot, statoSnapshot, statSnapshot] = await Promise.all([
           getDocs(collection(db, 'offerte_attive')),
           getDocs(collection(db, 'stato_volantini')),
+          getDocs(query(collection(db, 'statistiche_prodotti'), limit(500))),
         ]);
 
         const offerteList = offerteSnapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() }))
           .filter(o => !o.valido_fino || o.valido_fino >= OGGI);
 
+        // Costruisce "prezzi rilevati" da statistiche_prodotti
+        // Ogni documento ha: nome_key, insegne: { [insegna]: { media, n, ultimo_prezzo, ultima_data } }
+        const prezziRilevati = [];
+        statSnapshot.docs.forEach(doc => {
+          const d = doc.to_dict ? doc.to_dict() : doc.data();
+          const nomeKey = doc.id; // es. "birra_ichnusa"
+          const nomeDisplay = d.nome_display || nomeKey.replace(/_/g, ' ');
+          // Crea un'offerta sintetica per ogni insegna che ha dati sufficienti
+          const insegneStats = d.insegne || {};
+          Object.entries(insegneStats).forEach(([insegna, stats]) => {
+            if (!stats?.n || stats.n < 1) return; // almeno 1 campione
+            // Non aggiungere se già in offerta volantino questa settimana
+            const giaInOfferta = offerteList.some(
+              o => o.insegna?.toLowerCase() === insegna.toLowerCase() &&
+                   (o.nome?.toLowerCase().includes(nomeKey.replace(/_/g, ' ')) ||
+                    nomeKey.includes((o.nome || '').toLowerCase().replace(/\s+/g, '_')))
+            );
+            if (giaInOfferta) return;
+            prezziRilevati.push({
+              id:              `stat_${doc.id}_${insegna}`,
+              nome:            nomeDisplay,
+              insegna:         insegna,
+              prezzo:          stats.ultimo_prezzo || stats.media,
+              prezzo_kg:       null,
+              categoria:       d.categoria || 'altro',
+              fonte:           'scontrino',          // distingue da volantino
+              data_rilevazione: stats.ultima_data || null,
+              n_campioni:      stats.n,
+              nascosto:        false,
+              fidelity_req:    false,
+              // Nessun valido_dal/fino — è un prezzo "stabile"
+            });
+          });
+        });
+
         // stato_volantini include ora: insegna, tipo, sedi, valido_dal/fino, n_prodotti
         const statoList = statoSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-        if (offerteList.length === 0) {
+        // Merge: offerte volantino + prezzi rilevati da scontrini
+        const tutteLeOfferte = [...offerteList, ...prezziRilevati];
+
+        if (offerteList.length === 0 && prezziRilevati.length === 0) {
           setOfferte(MOCK_OFFERTE); setStatoVolantini(MOCK_STATO); setIsDemoMode(true);
         } else {
-          setOfferte(offerteList);
+          setOfferte(tutteLeOfferte);
           setStatoVolantini(statoList);
-          // Salva in cache con chiave per città
+          // Cache solo le offerte volantino (i prezzi rilevati cambiano spesso)
           scriviCache(cacheKey, offerteList);
           scriviCache(cacheKeyStato, statoList);
         }

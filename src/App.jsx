@@ -584,8 +584,12 @@ const ModalEditOfferta = ({ offerta, onChiudi }) => {
       // Filtra solo i campi effettivamente modificati
       const modificati = {};
       CAMPI_EDITABILI.forEach(({ key }) => {
-        const valNuovo = key === 'prezzo' ? parseFloat(campi[key]) : campi[key];
-        const valOld   = offerta[key];
+        const valNuovo = key === 'prezzo'
+          ? parseFloat(campi[key])
+          : (typeof campi[key] === 'string' ? campi[key].trim() : campi[key]);
+        const valOld = key === 'prezzo'
+          ? offerta[key]
+          : (typeof offerta[key] === 'string' ? offerta[key].trim() : offerta[key]);
         if (valNuovo !== valOld && campi[key] !== '') modificati[key] = valNuovo;
       });
       if (Object.keys(modificati).length === 0) { onChiudi(); return; }
@@ -621,9 +625,9 @@ const ModalEditOfferta = ({ offerta, onChiudi }) => {
       style={{ background: 'rgba(0,0,0,0.5)' }}
       onClick={onChiudi}>
 
-      {/* Bottom sheet — dvh per tastiera iOS */}
+      {/* Bottom sheet — usa svh + fallback per compatibilità Android/iOS */}
       <div className="rounded-t-[28px] flex flex-col"
-        style={{ background: T.surface, maxHeight: '92dvh' }}
+        style={{ background: T.surface, maxHeight: 'min(92svh, 92vh)' }}
         onClick={e => e.stopPropagation()}>
 
         {/* Handle */}
@@ -651,7 +655,8 @@ const ModalEditOfferta = ({ offerta, onChiudi }) => {
         </div>
 
         {/* Unico scroll — contiene tutto, bottone salva in fondo */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4"
+          style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
 
           {/* Info ruolo */}
           {!isGuru && (
@@ -6016,7 +6021,9 @@ const PannelloInfoInsegna = ({ insegna, città }) => {
   const [mostraForm, setMostraForm] = useState(false);
   const isGuru     = (profilo?.punti || 0) >= 1000;
   const eleggibile = città ? isEleggibilePerCittà(città) : false;
-  const puoProporre = utente && (isGuru || eleggibile);
+  // Tutti gli utenti autenticati possono proporre info —
+  // la validazione community protegge dalla qualità (1 Guru o N utenti per attivare)
+  const puoProporre = !!utente;
 
   // Città non ancora impostata nel profilo
   if (!città) return (
@@ -6163,7 +6170,7 @@ const PannelloInfoInsegna = ({ insegna, città }) => {
             {info.proposta.voti_guru?.length} Guru, {info.proposta.voti_utenti?.length} utenti —{' '}
             serve {info.proposta.tipo === 'nuova' ? '1 Guru o 3 utenti' : '1 Guru o 5 utenti'}
           </p>
-          {utente && !haVotato && (isGuru || eleggibile) && (
+          {utente && !haVotato && (
             <button onClick={() => votaProposta('conferma')}
               className="w-full py-2 rounded-xl text-xs font-semibold"
               style={{ background: '#92400E', color: '#fff' }}>
@@ -6173,19 +6180,20 @@ const PannelloInfoInsegna = ({ insegna, città }) => {
           {haVotato && (
             <p className="text-xs text-center" style={{ color: '#92400E' }}>✓ Hai già votato</p>
           )}
-          {utente && !isGuru && !eleggibile && (
+          {!utente && (
             <p className="text-xs text-center" style={{ color: '#A16207' }}>
-              Servono scontrini da {città} per votare
+              Accedi per votare
             </p>
           )}
         </div>
-      )}
+        )}
     </div>
   );
 };
 
 const TabSupermercati = ({ offerte, statoVolantini }) => {
   const [selectedInsegna, setSelectedInsegna] = useState(null);
+  const [infoaperta, setInfoAperta] = useState(false);
   const { segnalati, segnala } = useSegnalazioniStore();
   const { cittàAttiva } = useAuth();
 
@@ -6204,10 +6212,27 @@ const TabSupermercati = ({ offerte, statoVolantini }) => {
           </div>
         </div>
         <div className="overflow-y-auto flex-1">
-          {/* Pannello info pagamenti — sopra le offerte */}
-          <div className="rounded-[20px] mx-4 mt-4 overflow-hidden"
+
+          {/* Card pagamenti collassabile — sempre in cima, compatta */}
+          <div className="mx-4 mt-4 rounded-[20px] overflow-hidden"
             style={{ background: T.surface, border: `1px solid ${T.border}`, boxShadow: '0 4px 16px rgba(44,48,38,0.06)' }}>
-            <PannelloInfoInsegna insegna={selectedInsegna} città={cittàAttiva} />
+            {/* Header cliccabile */}
+            <button
+              className="w-full flex items-center justify-between px-4 py-3"
+              onClick={() => setInfoAperta(v => !v)}>
+              <div className="flex items-center gap-2">
+                <span className="text-base">💳</span>
+                <span className="text-sm font-medium" style={{ color: T.textPrimary }}>
+                  Pagamenti & promozioni
+                </span>
+              </div>
+              <span className="text-xs transition-transform duration-200"
+                style={{ color: T.textSec, transform: infoaperta ? 'rotate(180deg)' : 'rotate(0deg)', display: 'inline-block' }}>
+                ▾
+              </span>
+            </button>
+            {/* Contenuto espanso */}
+            {infoaperta && <PannelloInfoInsegna insegna={selectedInsegna} città={cittàAttiva} />}
           </div>
 
           {/* Lista offerte */}
@@ -7804,7 +7829,7 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk }) => {
               </p>
               <div className="space-y-3">
 
-                {/* Campo insegna — prominente con suggerimenti */}
+                {/* Campo insegna — select nativo per affidabilità mobile */}
                 <div>
                   <label className="block text-xs font-semibold mb-1" style={{ color: T.primary }}>
                     Supermercato <span style={{ color: T.accent }}>*</span>
@@ -7812,25 +7837,45 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk }) => {
                   <p className="text-[10px] mb-1.5" style={{ color: T.textSec }}>
                     Se lo scontrino mostra solo la ragione sociale (es. "GS Srl") scrivi il nome del negozio sull'insegna
                   </p>
-                  <input
-                    type="text"
-                    list="insegne-suggerite"
-                    value={estratto.insegna || ''}
-                    onChange={e => aggiornaCampoTestata('insegna', e.target.value)}
-                    placeholder="es. Lidl, PIM, Conad..."
-                    className="w-full px-3 py-2.5 rounded-xl text-base outline-none"
+                  <select
+                    value={INSEGNE_DISPONIBILI.includes(estratto.insegna || '') ? (estratto.insegna || '') : '__altro__'}
+                    onChange={e => {
+                      if (e.target.value !== '__altro__') {
+                        aggiornaCampoTestata('insegna', e.target.value);
+                      } else {
+                        aggiornaCampoTestata('insegna', '');
+                      }
+                    }}
+                    className="w-full px-3 py-2.5 rounded-xl text-base outline-none appearance-none"
                     style={{
                       background: T.bg,
                       border: `2px solid ${estratto.insegna?.trim() ? T.primary : T.accent}`,
                       color: T.textPrimary,
-                    }}
-                  />
-                  <datalist id="insegne-suggerite">
+                      fontFamily: "'DM Sans', sans-serif",
+                    }}>
+                    <option value="">— Seleziona supermercato —</option>
                     {INSEGNE_DISPONIBILI.map(ins => (
-                      <option key={ins} value={ins} />
+                      <option key={ins} value={ins}>{ins}</option>
                     ))}
-                  </datalist>
-                  {/* Mostra nome sull'intestazione scontrino se diverso */}
+                    <option value="__altro__">Altro (scrivi sotto)</option>
+                  </select>
+                  {/* Campo testo libero se non è in lista */}
+                  {(!estratto.insegna || !INSEGNE_DISPONIBILI.includes(estratto.insegna)) && (
+                    <input
+                      type="text"
+                      value={estratto.insegna || ''}
+                      onChange={e => aggiornaCampoTestata('insegna', e.target.value)}
+                      placeholder="Scrivi il nome del supermercato..."
+                      className="w-full px-3 py-2.5 rounded-xl text-base outline-none mt-2"
+                      style={{
+                        background: T.bg,
+                        border: `2px solid ${estratto.insegna?.trim() ? T.primary : T.accent}`,
+                        color: T.textPrimary,
+                        fontFamily: "'DM Sans', sans-serif",
+                      }}
+                    />
+                  )}
+                  {/* Mostra nome originale estratto dallo scontrino */}
                   {estratto.insegna_raw && estratto.insegna_raw !== estratto.insegna && (
                     <p className="text-[10px] mt-1" style={{ color: T.textSec }}>
                       Estratto dallo scontrino: <span className="font-mono">{estratto.insegna_raw}</span>

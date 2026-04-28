@@ -9098,13 +9098,20 @@ function AppInterna() {
 
       // ── 2. Cache mancante o scaduta — legge da Firestore ─────────────────
       try {
-        // Carica offerte attive + statistiche prodotti + prezzi scontrini in parallelo
-        const [offerteSnapshot, statoSnapshot, statSnapshot, prezziSnapshot] = await Promise.all([
-          getDocs(collection(db, 'offerte_attive')),
+        // offerte_attive: due query separate perché Firestore non supporta OR su campi diversi
+        // - query A: nascosto == false (esplicitamente non nascosto)
+        // - query B: nascosto non esiste (campo assente — la maggior parte delle offerte UGC)
+        const [offerteSnapA, offerteSnapB, statoSnapshot, statSnapshot, prezziSnapshot] = await Promise.all([
+          getDocs(query(collection(db, 'offerte_attive'), where('nascosto', '==', false))),
+          getDocs(query(collection(db, 'offerte_attive'), where('nascosto', '==', null))),
           getDocs(collection(db, 'stato_volantini')),
           getDocs(query(collection(db, 'statistiche_prodotti'), limit(500))),
           getDocs(query(collection(db, 'prezzi_scontrini'), limit(400))),
         ]);
+        // Unisce e deduplica per id
+        const offerteMap = new Map();
+        [...offerteSnapA.docs, ...offerteSnapB.docs].forEach(d => offerteMap.set(d.id, d));
+        const offerteSnapshot = { docs: [...offerteMap.values()] };
 
         const tutteInDb       = offerteSnapshot.docs.length;         // documenti totali in Firestore
         const offerteList = offerteSnapshot.docs

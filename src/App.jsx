@@ -5977,9 +5977,15 @@ const TabRevisioneVolantini = ({ onTorna }) => {
 
                   {/* D. Date validità — inserite dal Guru, preponderanti sull'OCR */}
                   <div className="mb-3 p-3 rounded-xl" style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
-                    <p className="text-[10px] font-semibold uppercase mb-2" style={{ color: '#15803D' }}>
+                    <p className="text-[10px] font-semibold uppercase mb-1" style={{ color: '#15803D' }}>
                       📅 Date validità (le tue date hanno priorità sull'OCR)
                     </p>
+                    {vol.valido_fino && (
+                      <p className="text-[11px] mb-2 px-2 py-1 rounded-lg"
+                        style={{ background: '#DCFCE7', color: '#166534' }}>
+                        📲 L'utente ha indicato: valido fino al <strong>{vol.valido_fino}</strong>
+                      </p>
+                    )}
                     <div className="flex gap-2">
                       <div className="flex-1">
                         <label className="block text-[10px] mb-1" style={{ color: T.textSec }}>Dal</label>
@@ -5997,6 +6003,7 @@ const TabRevisioneVolantini = ({ onTorna }) => {
                         <label className="block text-[10px] mb-1" style={{ color: T.textSec }}>Al</label>
                         <input
                           type="date"
+                          defaultValue={vol.valido_fino || ''}
                           onChange={e => setFormNuovoPv(prev => ({
                             ...prev,
                             [vol.id]: { ...(prev[vol.id] || {}), guru_valido_fino: e.target.value }
@@ -6007,7 +6014,7 @@ const TabRevisioneVolantini = ({ onTorna }) => {
                       </div>
                     </div>
                     <p className="text-[10px] mt-1.5" style={{ color: '#15803D' }}>
-                      Lascia vuoto se non riesci a leggere le date dal volantino — ci prova l'OCR
+                      Lascia vuoto se non riesci a leggere le date — ci prova l'OCR
                     </p>
                   </div>
 
@@ -6169,7 +6176,16 @@ const TabRevisioneVolantini = ({ onTorna }) => {
                       </button>
                       {/* Approva con match punto vendita */}
                       <button
-                        onClick={() => setMatchAperto(vol.id)}
+                        onClick={() => {
+                          setMatchAperto(vol.id);
+                          // Pre-compila la data dell'utente nel form Guru
+                          if (vol.valido_fino) {
+                            setFormNuovoPv(prev => ({
+                              ...prev,
+                              [vol.id]: { ...(prev[vol.id] || {}), guru_valido_fino: vol.valido_fino }
+                            }));
+                          }
+                        }}
                         disabled={isElab}
                         className="flex-1 py-2.5 rounded-[14px] text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-50"
                         style={{ background: T.primary, color: '#fff' }}>

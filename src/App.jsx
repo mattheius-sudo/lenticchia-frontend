@@ -7176,7 +7176,7 @@ const TabSpese = ({ scontriniReali = [], dataLoaded = false }) => {
 
       {/* ── Sprint 2: Modal drill-down scontrino con editing prodotti ── */}
       {modalScontrino && (
-        <div className="fixed inset-0 z-50 flex flex-col" style={{ background: T.bg }}>
+        <div className="fixed inset-0 z-[100] flex flex-col" style={{ background: T.bg }}>
 
           {/* Header */}
           <div className="px-5 pb-4 flex items-center gap-3 shrink-0"
@@ -8357,35 +8357,63 @@ function AppInterna() {
           .filter(o => !o.valido_fino || o.valido_fino >= OGGI);
 
         // Costruisce "prezzi rilevati" da statistiche_prodotti
-        // Ogni documento ha: nome_key, insegne: { [insegna]: { media, n, ultimo_prezzo, ultima_data } }
+        // Schema Python: per_insegna: { [chiave_norm]: { media, n, min, max } }
+        // chiave_norm = normalizza_insegna("PIM/Agorà") → "pim_agor" (lowercase, \W→_)
+        const INSEGNA_KEY_MAP = {
+          'lidl':        'Lidl',
+          'eurospin':    'Eurospin',
+          'todis':       'Todis',
+          'md':          'MD Discount',
+          'md_discount': 'MD Discount',
+          'pim':         'PIM/Agorà',
+          'pim_agora':   'PIM/Agorà',
+          'pim_agor':    'PIM/Agorà',
+          'agora':       'PIM/Agorà',
+          'agor':        'PIM/Agorà',
+          'cts':         'CTS',
+          'sacoph':      'Sacoph',
+          'elite':       'Elite',
+        };
+        // Ricostruisce il nome display dell'insegna dalla chiave normalizzata
+        const denormInsegna = (key) => {
+          if (INSEGNA_KEY_MAP[key]) return INSEGNA_KEY_MAP[key];
+          // Fallback: cerca match parziale tra le chiavi note
+          const found = Object.keys(INSEGNA_KEY_MAP).find(k => key.startsWith(k) || k.startsWith(key));
+          return found ? INSEGNA_KEY_MAP[found] : key.replace(/_/g, ' ');
+        };
+
         const prezziRilevati = [];
         statSnapshot.docs.forEach(doc => {
-          const d = doc.to_dict ? doc.to_dict() : doc.data();
+          const d = doc.data();
           const nomeKey = doc.id; // es. "birra_ichnusa"
-          const nomeDisplay = d.nome_display || nomeKey.replace(/_/g, ' ');
-          // Crea un'offerta sintetica per ogni insegna che ha dati sufficienti
-          const insegneStats = d.insegne || {};
-          Object.entries(insegneStats).forEach(([insegna, stats]) => {
+          const nomeDisplay = d.nome_originale || nomeKey.replace(/_/g, ' ');
+          // Legge per_insegna (schema Python benchmark_prezzi.py)
+          // Fallback a d.insegne per retrocompatibilità con eventuali doc vecchi
+          const insegneStats = d.per_insegna || d.insegne || {};
+          const dataRilevazione = d.ultimo_aggiornamento || null;
+          Object.entries(insegneStats).forEach(([insegnaKey, stats]) => {
             if (!stats?.n || stats.n < 1) return; // almeno 1 campione
-            // Non aggiungere se già in offerta volantino questa settimana
+            if (!stats?.media || stats.media <= 0) return; // prezzo necessario
+            const insegnaDisplay = denormInsegna(insegnaKey);
+            // Non aggiungere se già in offerta volantino questa settimana per questa insegna
             const giaInOfferta = offerteList.some(
-              o => o.insegna?.toLowerCase() === insegna.toLowerCase() &&
+              o => o.insegna === insegnaDisplay &&
                    (o.nome?.toLowerCase().includes(nomeKey.replace(/_/g, ' ')) ||
                     nomeKey.includes((o.nome || '').toLowerCase().replace(/\s+/g, '_')))
             );
             if (giaInOfferta) return;
             prezziRilevati.push({
-              id:              `stat_${doc.id}_${insegna}`,
-              nome:            nomeDisplay,
-              insegna:         insegna,
-              prezzo:          stats.ultimo_prezzo || stats.media,
-              prezzo_kg:       null,
-              categoria:       d.categoria || 'altro',
-              fonte:           'scontrino',          // distingue da volantino
-              data_rilevazione: stats.ultima_data || null,
-              n_campioni:      stats.n,
-              nascosto:        false,
-              fidelity_req:    false,
+              id:               `stat_${doc.id}_${insegnaKey}`,
+              nome:             nomeDisplay,
+              insegna:          insegnaDisplay,
+              prezzo:           stats.media,
+              prezzo_kg:        null,
+              categoria:        d.categoria || 'altro',
+              fonte:            'scontrino',           // distingue da volantino
+              data_rilevazione: dataRilevazione,
+              n_campioni:       stats.n,
+              nascosto:         false,
+              fidelity_req:     false,
               // Nessun valido_dal/fino — è un prezzo "stabile"
             });
           });

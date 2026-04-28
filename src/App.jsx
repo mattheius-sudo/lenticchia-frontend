@@ -4136,7 +4136,7 @@ const CATEGORIE_EMOJI = {
   altro:          '📦',
 };
 
-const TabOfferte = ({ offerte, archivio = [], cittàAttiva = null, preferenze = null, prezziCommunity = [] }) => {
+const TabOfferte = ({ offerte, archivio = [], cittàAttiva = null, preferenze = null, prezziCommunity = [], profiloDemografico = null }) => {
   const { prodottiPreferiti, isLoggedIn } = useAuth();
   const [searchOpen,     setSearchOpen]     = useState(false);
   const [searchQuery,    setSearchQuery]     = useState('');
@@ -9057,7 +9057,7 @@ function AppInterna() {
       )}
 
       <div className="h-screen overflow-hidden" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 4.5rem)' }}>
-        {activeTab === 'offerte'    && <TabOfferte offerte={offerte} archivio={archivio} cittàAttiva={cittàAttiva} preferenze={preferenze} prezziCommunity={prezziCommunity} />}
+        {activeTab === 'offerte'    && <TabOfferte offerte={offerte} archivio={archivio} cittàAttiva={cittàAttiva} preferenze={preferenze} prezziCommunity={prezziCommunity} profiloDemografico={profiloDemografico} />}
         {activeTab === 'lista'      && (utente
           ? <TabListaSpesa offerte={offerte} archivio={archivio} />
           : <TabLoginRichiesto messaggio="Accedi per gestire la tua lista della spesa e usare il Verdetto Spesa." />

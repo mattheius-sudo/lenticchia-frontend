@@ -3941,12 +3941,19 @@ const TabScontrino = ({ onApriRevisione = null }) => {
 // ─── ProductCard Compatta con Trust Signals (Task 2+8) ───────────────────────
 
 const ProductCardCompattaBase = ({ offerta, index = 0, segnalati, segnala, trend = null }) => {
+  const { utente: utenteCard, profilo: profiloCard } = useAuth();
   const giorni = calcGiorniRimanenti(offerta.valido_fino);
   const isScadenzaOggi = offerta.valido_fino === OGGI;
   const isScadenzaDomani = offerta.valido_fino === DOMANI;
   const isUrgente = giorni <= 2 && giorni >= 0;
 
-  // Stato locale per conferma "visto in negozio"
+  // Stato voting Waze
+  const [votoAperto,  setVotoAperto]  = useState(false);
+  const [prezzoInput, setPrezzoInput] = useState('');
+  const [votando,     setVotando]     = useState(false);
+  const [haVotato,    setHaVotato]    = useState(false);
+
+  // Stato locale per conferma legacy
   const [confermato, setConfermato] = useState(false);
 
   const confermaVisto = async (e) => {
@@ -4069,55 +4076,113 @@ const ProductCardCompattaBase = ({ offerta, index = 0, segnalati, segnala, trend
         </div>
       )}
 
-      {/* Trust bar — solo per offerte da foto utente o con segnalazioni */}
-      {!isPrezzoReale && (isFotoUtente || segnalazioniN > 0 || conferme > 0) && (
-        <div className="mt-2 flex items-center justify-between">
-          {/* Sinistra: source + conferme */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {isFotoUtente && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
-                style={{ background: '#EEF2E4', color: T.primary }}>
-                📸 Foto community
-              </span>
+      {/* ── Voting Waze-style — per offerte da foto utente (stato: community) ── */}
+      {isFotoUtente && offerta.id && (() => {
+        const prezzoMostrato = offerta.prezzo_community ?? offerta.prezzo;
+        const nConferme      = offerta.n_conferme || 0;
+        const hasConsensus   = offerta.prezzo_community != null;
+        const puntiUtente    = profiloCard?.punti || 0;
+        const isGuruCard     = puntiUtente >= 1000;
+
+        const vota = async (prezzoVotato) => {
+          if (!utenteCard || votando || haVotato) return;
+          setVotando(true);
+          try {
+            const voto = {
+              uid:              utenteCard.uid,
+              punti_lenticchia: puntiUtente,
+              prezzo_proposto:  prezzoVotato,
+              is_guru:          isGuruCard,
+              timestamp:        new Date().toISOString(),
+            };
+            const updates = { voti_prezzo: arrayUnion(voto) };
+
+            const tuttiVoti    = [...(offerta.voti_prezzo || []), voto];
+            const prezzoTarget = prezzoVotato ?? offerta.prezzo;
+            const accordo      = tuttiVoti.filter(v => (v.prezzo_proposto ?? offerta.prezzo) === prezzoTarget);
+            const hasGuruAcc   = accordo.some(v => v.is_guru);
+            if (hasGuruAcc || accordo.length >= 3) {
+              updates.prezzo_community = prezzoTarget;
+              updates.consensus_il     = new Date().toISOString();
+            }
+            updates[prezzoVotato === null ? 'n_conferme' : 'n_correzioni'] =
+              (prezzoVotato === null ? nConferme : (offerta.n_correzioni || 0)) + 1;
+
+            await updateDoc(doc(db, 'offerte_attive', offerta.id), updates);
+            setHaVotato(true);
+            setVotoAperto(false);
+          } catch (err) { console.error('Errore voto:', err); }
+          finally { setVotando(false); }
+        };
+
+        return (
+          <div className="mt-2 pt-2" style={{ borderTop: `1px solid ${T.border}` }}>
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
+                  style={{ background: '#EEF2E4', color: T.primary }}>📸 Foto community</span>
+                {hasConsensus ? (
+                  <span className="text-[10px] font-semibold" style={{ color: T.primary }}>
+                    ✓ Confermato da {nConferme} {nConferme === 1 ? 'utente' : 'utenti'}
+                  </span>
+                ) : nConferme > 0 ? (
+                  <span className="text-[10px]" style={{ color: T.textSec }}>{nConferme}/3 conferme</span>
+                ) : (
+                  <span className="text-[10px]" style={{ color: T.textSec }}>Non ancora verificato</span>
+                )}
+              </div>
+              {hasConsensus && offerta.prezzo_community !== offerta.prezzo && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md"
+                  style={{ background: '#FFF7ED', color: T.accent }}>
+                  🔄 {formattaPrezzo(offerta.prezzo_community)} (corretto)
+                </span>
+              )}
+            </div>
+
+            {!haVotato && !hasConsensus && utenteCard && (
+              votoAperto ? (
+                <div className="flex items-center gap-1.5">
+                  <input type="number" step="0.01" min="0"
+                    value={prezzoInput} onChange={e => setPrezzoInput(e.target.value)}
+                    placeholder={String(offerta.prezzo)} autoFocus
+                    className="flex-1 px-2 py-1 rounded-lg text-sm outline-none"
+                    style={{ background: T.bg, border: `1px solid ${T.primary}`, color: T.textPrimary }} />
+                  <button onClick={() => vota(parseFloat(prezzoInput) || offerta.prezzo)}
+                    disabled={votando}
+                    className="px-2.5 py-1 rounded-lg text-xs font-semibold"
+                    style={{ background: T.primary, color: '#fff' }}>
+                    {votando ? '…' : 'Invia'}
+                  </button>
+                  <button onClick={() => { setVotoAperto(false); setPrezzoInput(''); }}
+                    className="px-2 py-1 rounded-lg text-xs"
+                    style={{ background: T.bg, color: T.textSec, border: `1px solid ${T.border}` }}>✕</button>
+                </div>
+              ) : (
+                <div className="flex gap-1.5">
+                  <button onClick={() => vota(null)} disabled={votando}
+                    className="flex-1 py-1 rounded-lg text-[11px] font-semibold transition-all active:scale-95"
+                    style={{ background: '#EEF2E4', color: T.primary }}>
+                    ✓ Confermo {formattaPrezzo(prezzoMostrato)}
+                  </button>
+                  <button onClick={() => setVotoAperto(true)}
+                    className="px-3 py-1 rounded-lg text-[11px] transition-all active:scale-95"
+                    style={{ background: T.bg, color: T.textSec, border: `1px solid ${T.border}` }}>
+                    ✎ Correggi
+                  </button>
+                </div>
+              )
             )}
-            {conferme > 0 && (
-              <span className="text-[10px]" style={{ color: T.textSec }}>
-                {conferme} {conferme === 1 ? 'conferma' : 'conferme'}
-              </span>
+            {haVotato && (
+              <p className="text-[10px] font-medium" style={{ color: T.primary }}>✓ Voto registrato — grazie!</p>
             )}
-            {ggFa !== null && (
-              <span className="text-[10px]" style={{ color: T.textSec }}>
-                · {ggFa === 0 ? 'oggi' : `${ggFa}gg fa`}
-              </span>
-            )}
-            {segnalazioniN > 0 && (
-              <span className="text-[10px] font-medium" style={{ color: T.accent }}>
-                ⚠️ {segnalazioniN} segnalaz.
-              </span>
+            {!hasConsensus && (
+              <p className="text-[10px] mt-1" style={{ color: T.textSec }}>
+                Verifica sempre il prezzo al momento dell'acquisto
+              </p>
             )}
           </div>
-
-          {/* Destra: bottone "Confermo" */}
-          {offerta.id && !confermato && (
-            <button
-              onClick={confermaVisto}
-              className="text-[10px] px-2 py-0.5 rounded-full font-medium transition-all active:scale-95"
-              style={{ border: `1px solid ${T.border}`, color: T.textSec, background: T.surface }}>
-              ✓ Confermo
-            </button>
-          )}
-          {confermato && (
-            <span className="text-[10px] font-medium" style={{ color: T.primary }}>✓ Confermato</span>
-          )}
-        </div>
-      )}
-
-      {/* Disclaimer — solo offerte non ancora confermate da community */}
-      {isFotoUtente && conferme < 3 && (
-        <p className="text-[10px] mt-1.5 leading-tight" style={{ color: T.textSec }}>
-          Verifica sempre il prezzo al momento dell'acquisto
-        </p>
-      )}
+        );
+      })()}
     </div>
   );
 };
@@ -4158,7 +4223,7 @@ const CATEGORIE_EMOJI = {
   altro:          '📦',
 };
 
-const TabOfferte = ({ offerte, archivio = [], cittàAttiva = null, preferenze = null, prezziCommunity = [], profiloDemografico = null }) => {
+const TabOfferte = ({ offerte, archivio = [], cittàAttiva = null, preferenze = null, prezziCommunity = [], profiloDemografico = null, motivoVuoto = null }) => {
   const { prodottiPreferiti, isLoggedIn } = useAuth();
   const [searchOpen,     setSearchOpen]     = useState(false);
   const [searchQuery,    setSearchQuery]     = useState('');
@@ -4631,13 +4696,27 @@ const TabOfferte = ({ offerte, archivio = [], cittàAttiva = null, preferenze = 
             {/* Empty state per utente loggato senza dati nella sua area */}
             {offerte.length === 0 && isLoggedIn && (
               <div className="px-4 pt-8">
-                <EmptyStateAzione
-                  emoji="🌱"
-                  titolo="Nessun volantino ancora nella tua area"
-                  sottotitolo={`Non abbiamo ancora raccolto offerte per la tua zona. Puoi aiutarci fotografando il volantino del tuo supermercato — o aspettare che arrivi il primo scraping.`}
-                  labelCta="Fotografa un volantino"
-                  onCta={() => document.dispatchEvent(new CustomEvent('lenticchia:goto', { detail: 'scontrino' }))}
-                />
+                {motivoVuoto === 'scaduti' ? (
+                  <EmptyStateAzione
+                    emoji="📅"
+                    titolo="I volantini della tua area sono scaduti"
+                    sottotitolo="I dati ci sono in archivio ma il periodo di validità è terminato. Torneranno non appena il sistema elaborerà i nuovi volantini (di solito il giovedì)."
+                    labelCta="Fotografa un volantino aggiornato"
+                    onCta={() => document.dispatchEvent(new CustomEvent('lenticchia:goto', { detail: 'scontrino' }))}
+                  />
+                ) : (
+                  <EmptyStateAzione
+                    emoji="🌱"
+                    titolo="Nessun volantino ancora nella tua area"
+                    sottotitolo={cittàAttiva
+                      ? `Non abbiamo ancora raccolto offerte per ${cittàAttiva}. Puoi aiutarci fotografando il volantino del tuo supermercato.`
+                      : 'Imposta la tua città nel Profilo per vedere le offerte della tua zona.'}
+                    labelCta={cittàAttiva ? 'Fotografa un volantino' : 'Vai al Profilo'}
+                    onCta={() => document.dispatchEvent(new CustomEvent('lenticchia:goto', {
+                      detail: cittàAttiva ? 'scontrino' : 'profilo'
+                    }))}
+                  />
+                )}
               </div>
             )}
             {/* Sezione ⭐ Per te — solo se loggato con preferiti in offerta */}
@@ -5633,6 +5712,8 @@ const TabRevisioneVolantini = ({ onTorna }) => {
         punto_vendita:     pvInfo?.nome_display   || null,
         insegna_validata:  insegnaValidata,
         cap_riferimento:   capGuru,
+        guru_valido_dal:   formGuru.guru_valido_dal?.trim()  || null,
+        guru_valido_fino:  formGuru.guru_valido_fino?.trim() || null,
       });
       setCoda(prev => prev.filter(d => d.id !== docId));
       setMatchAperto(null);
@@ -5824,6 +5905,42 @@ const TabRevisioneVolantini = ({ onTorna }) => {
                     />
                     <p className="text-[10px] mt-1" style={{ color: T.textSec }}>
                       Serve per mostrare l'offerta agli utenti vicini — puoi lasciare vuoto se non lo sai
+                    </p>
+                  </div>
+
+                  {/* D. Date validità — inserite dal Guru, preponderanti sull'OCR */}
+                  <div className="mb-3 p-3 rounded-xl" style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
+                    <p className="text-[10px] font-semibold uppercase mb-2" style={{ color: '#15803D' }}>
+                      📅 Date validità (le tue date hanno priorità sull'OCR)
+                    </p>
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <label className="block text-[10px] mb-1" style={{ color: T.textSec }}>Dal</label>
+                        <input
+                          type="date"
+                          onChange={e => setFormNuovoPv(prev => ({
+                            ...prev,
+                            [vol.id]: { ...(prev[vol.id] || {}), guru_valido_dal: e.target.value }
+                          }))}
+                          className="w-full px-2.5 py-1.5 rounded-lg text-sm outline-none"
+                          style={{ background: '#fff', border: '1px solid #BBF7D0', color: T.textPrimary }}
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-[10px] mb-1" style={{ color: T.textSec }}>Al</label>
+                        <input
+                          type="date"
+                          onChange={e => setFormNuovoPv(prev => ({
+                            ...prev,
+                            [vol.id]: { ...(prev[vol.id] || {}), guru_valido_fino: e.target.value }
+                          }))}
+                          className="w-full px-2.5 py-1.5 rounded-lg text-sm outline-none"
+                          style={{ background: '#fff', border: '1px solid #BBF7D0', color: T.textPrimary }}
+                        />
+                      </div>
+                    </div>
+                    <p className="text-[10px] mt-1.5" style={{ color: '#15803D' }}>
+                      Lascia vuoto se non riesci a leggere le date dal volantino — ci prova l'OCR
                     </p>
                   </div>
 
@@ -8617,6 +8734,7 @@ function AppInterna() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [offerte, setOfferte] = useState([]);
   const [prezziSnapshotPubblici, setPrezziSnapshotPubblici] = useState([]);
+  const [motivoVuoto, setMotivoVuoto] = useState(null); // 'scaduti' | 'nessun_dato' | null
   const [statoVolantini, setStatoVolantini] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isDemoMode, setIsDemoMode] = useState(false);
@@ -8754,6 +8872,7 @@ function AppInterna() {
           getDocs(query(collection(db, 'prezzi_scontrini'), limit(400))),
         ]);
 
+        const tutteInDb       = offerteSnapshot.docs.length;         // documenti totali in Firestore
         const offerteList = offerteSnapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() }))
           .filter(o => !o.valido_fino || o.valido_fino >= OGGI);
@@ -8833,15 +8952,19 @@ function AppInterna() {
 
         if (offerteList.length === 0 && prezziRilevati.length === 0) {
           if (utente) {
-            // Utente loggato ma nessun dato: empty state onesto, niente mock
+            // Distingue: ci sono docs in Firestore ma tutti scaduti, oppure collection vuota
+            const motivo = tutteInDb > 0 ? 'scaduti' : 'nessun_dato';
+            setMotivoVuoto(motivo);
             setOfferte([]);
             setStatoVolantini(statoList);
             setIsDemoMode(false);
           } else {
             // Utente anonimo: mostra demo per far vedere come funziona l'app
+            setMotivoVuoto(null);
             setOfferte(MOCK_OFFERTE); setStatoVolantini(MOCK_STATO); setIsDemoMode(true);
           }
         } else {
+          setMotivoVuoto(null);
           setOfferte(tutteLeOfferte);
           setStatoVolantini(statoList);
           setIsDemoMode(false); // reset esplicito in caso di ricarica dopo demo
@@ -9135,7 +9258,7 @@ function AppInterna() {
       )}
 
       <div className="h-screen overflow-hidden" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 4.5rem)' }}>
-        {activeTab === 'offerte'    && <TabOfferte offerte={offerte} archivio={archivio} cittàAttiva={cittàAttiva} preferenze={preferenze} prezziCommunity={prezziCommunity} profiloDemografico={profiloDemografico} />}
+        {activeTab === 'offerte'    && <TabOfferte offerte={offerte} archivio={archivio} cittàAttiva={cittàAttiva} preferenze={preferenze} prezziCommunity={prezziCommunity} profiloDemografico={profiloDemografico} motivoVuoto={motivoVuoto} />}
         {activeTab === 'lista'      && (utente
           ? <TabListaSpesa offerte={offerte} archivio={archivio} />
           : <TabLoginRichiesto messaggio="Accedi per gestire la tua lista della spesa e usare il Verdetto Spesa." />

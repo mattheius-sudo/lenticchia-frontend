@@ -157,7 +157,29 @@ const FiltroInline = ({ value, onChange, placeholder = 'Filtra...', style: extra
   </div>
 );
 
-// ─── Costanti ─────────────────────────────────────────────────────────────────
+// ─── EmptyStateAzione — empty state con CTA, mai un bucket vuoto ─────────────
+const EmptyStateAzione = ({ emoji = '🔍', titolo, sottotitolo, labelCta, onCta, ctaSecondaria = null }) => (
+  <div className="rounded-[20px] py-10 px-6 text-center"
+    style={{ background: T.surface, border: `1px dashed ${T.border}` }}>
+    {emoji && <div style={{ fontSize: '28px', marginBottom: '10px' }}>{emoji}</div>}
+    <p className="text-sm font-semibold mb-1" style={{ color: T.textPrimary }}>{titolo}</p>
+    {sottotitolo && <p className="text-xs leading-relaxed mb-4" style={{ color: T.textSec }}>{sottotitolo}</p>}
+    {labelCta && onCta && (
+      <button onClick={onCta}
+        className="px-4 py-2 rounded-[12px] text-sm font-semibold text-white transition-all active:scale-[0.97]"
+        style={{ background: T.primary }}>
+        {labelCta}
+      </button>
+    )}
+    {ctaSecondaria && (
+      <button onClick={ctaSecondaria.onCta}
+        className="block mx-auto mt-2 text-xs font-medium"
+        style={{ color: T.textSec }}>
+        {ctaSecondaria.label}
+      </button>
+    )}
+  </div>
+);
 
 // ── CAP → Quartiere (portato da CAP_ROMA_LOOKUP.py) ──────────────────────────
 // Usato per mostrare nomi quartiere invece di CAP grezzi e per filtrare
@@ -4438,9 +4460,14 @@ const TabOfferte = ({ offerte, archivio = [], cittàAttiva = null, preferenze = 
                 Inizia a scrivere per cercare
               </p>
             ) : offerteSearch.length === 0 ? (
-              <p className="text-sm text-center py-8" style={{ color: T.textSec }}>
-                Nessuna offerta trovata per "{searchQuery}"
-              </p>
+              <EmptyStateAzione
+                emoji="🔍"
+                titolo={`"${searchQuery}" non è ancora in archivio`}
+                sottotitolo="Potrebbe esserci un'offerta che non abbiamo ancora caricato."
+                labelCta="Inserisci offerta manualmente"
+                onCta={() => document.dispatchEvent(new CustomEvent('lenticchia:inserisci-offerta', { detail: searchQuery }))}
+                ctaSecondaria={{ label: 'Cancella ricerca', onCta: chiudiSearch }}
+              />
             ) : (
               <div className="rounded-[20px] overflow-hidden"
                 style={{ background: T.surface, border: `1px solid ${T.border}` }}>
@@ -4523,21 +4550,22 @@ const TabOfferte = ({ offerte, archivio = [], cittàAttiva = null, preferenze = 
                 style={{ marginBottom: '12px' }}
               />
               {prezziCommunity.length === 0 ? (
-              <div className="rounded-[20px] py-12 text-center"
-                style={{ background: T.surface, border: `1px dashed ${T.border}` }}>
-                <Receipt size={28} strokeWidth={1.2} className="mx-auto mb-3" style={{ color: T.textSec }} />
-                <p className="text-sm font-medium mb-1" style={{ color: T.textPrimary }}>
-                  Nessun prezzo ancora
-                </p>
-                <p className="text-xs" style={{ color: T.textSec }}>
-                  Carica il tuo primo scontrino — i prezzi appaiono qui dopo la verifica.
-                </p>
-              </div>
+              <EmptyStateAzione
+                emoji="🧾"
+                titolo="Ancora nessun prezzo nella tua zona"
+                sottotitolo="Carica il tuo primo scontrino: i prezzi appaiono qui dopo la verifica e aiutano tutta la community."
+                labelCta="Carica scontrino"
+                onCta={() => document.dispatchEvent(new CustomEvent('lenticchia:goto', { detail: 'scontrino' }))}
+              />
             ) : listaPrezzi.length === 0 ? (
-              <div className="rounded-[20px] py-10 text-center"
-                style={{ background: T.surface, border: `1px solid ${T.border}` }}>
-                <p className="text-sm" style={{ color: T.textSec }}>Nessun risultato per "{filtroTestoPrezzi}"</p>
-              </div>
+              <EmptyStateAzione
+                emoji="🔍"
+                titolo={`"${filtroTestoPrezzi}" non ancora rilevato`}
+                sottotitolo="Nessuno nella tua zona ha ancora caricato questo prodotto."
+                labelCta="Carica scontrino con questo prodotto"
+                onCta={() => document.dispatchEvent(new CustomEvent('lenticchia:goto', { detail: 'scontrino' }))}
+                ctaSecondaria={{ label: 'Cancella filtro', onCta: () => setFiltroTestoPrezzi('') }}
+              />
             ) : (
               <div className="rounded-[20px] overflow-hidden"
                 style={{ background: T.surface, border: `1px solid #BAE6FD`,
@@ -4798,12 +4826,14 @@ const TabOfferte = ({ offerte, archivio = [], cittàAttiva = null, preferenze = 
               })()}
 
               {offerteFiltrate.length === 0 ? (
-                <div className="rounded-[20px] py-12 text-center"
-                  style={{ background: T.surface, border: `1px solid ${T.border}` }}>
-                  <p className="text-sm" style={{ color: T.textSec }}>
-                    Nessuna offerta {catAttiva !== 'tutte' ? 'in questa categoria' : ''}{filtroInsegna ? ` da ${filtroInsegna}` : ''} questa settimana
-                  </p>
-                </div>
+                <EmptyStateAzione
+                  emoji="🏷️"
+                  titolo={filtroInsegna ? `Nessuna offerta da ${filtroInsegna} questa settimana` : 'Nessuna offerta in questa categoria'}
+                  sottotitolo="Hai visto un'offerta in negozio che non è qui? Aggiungila tu."
+                  labelCta="Aggiungi offerta"
+                  onCta={() => document.dispatchEvent(new CustomEvent('lenticchia:inserisci-offerta', {}))}
+                  ctaSecondaria={filtroInsegna ? { label: 'Mostra tutte le insegne', onCta: () => setFiltroInsegna(null) } : null}
+                />
               ) : (() => {
                 const q = filtroTestoOfferte.toLowerCase().trim();
                 const lista = q
@@ -4813,10 +4843,14 @@ const TabOfferte = ({ offerte, archivio = [], cittàAttiva = null, preferenze = 
                       (o.insegna||'').toLowerCase().includes(q))
                   : offerteFiltrate;
                 if (lista.length === 0) return (
-                  <div className="rounded-[20px] py-10 text-center"
-                    style={{ background: T.surface, border: `1px solid ${T.border}` }}>
-                    <p className="text-sm" style={{ color: T.textSec }}>Nessun risultato per "{filtroTestoOfferte}"</p>
-                  </div>
+                  <EmptyStateAzione
+                    emoji="🔍"
+                    titolo={`"${filtroTestoOfferte}" non trovato`}
+                    sottotitolo="Non c'è ancora questa offerta in archivio. Aggiungila tu!"
+                    labelCta="Aggiungi offerta"
+                    onCta={() => document.dispatchEvent(new CustomEvent('lenticchia:inserisci-offerta', { detail: filtroTestoOfferte }))}
+                    ctaSecondaria={{ label: 'Cancella filtro', onCta: () => setFiltroTestoOfferte('') }}
+                  />
                 );
                 return (
                   <div className="rounded-[20px] overflow-hidden"
@@ -6562,6 +6596,19 @@ const TabSupermercati = ({ offerte, statoVolantini }) => {
         <div className="grid grid-cols-2 gap-3">
           {statoVolantini
             .filter(s => !filtroNegozi || (s.insegna||'').toLowerCase().includes(filtroNegozi.toLowerCase()))
+            .length === 0 && filtroNegozi ? (
+            <div className="col-span-2">
+              <EmptyStateAzione
+                emoji="🏪"
+                titolo={`"${filtroNegozi}" non è ancora in app`}
+                sottotitolo="Conosci questo supermercato? Segnalacelo e lo aggiungiamo."
+                labelCta="Segnala negozio mancante"
+                onCta={() => document.dispatchEvent(new CustomEvent('lenticchia:segnala-negozio', { detail: filtroNegozi }))}
+                ctaSecondaria={{ label: 'Cancella filtro', onCta: () => setFiltroNegozi('') }}
+              />
+            </div>
+          ) : statoVolantini
+            .filter(s => !filtroNegozi || (s.insegna||'').toLowerCase().includes(filtroNegozi.toLowerCase()))
             .map(stato => (
             <button key={stato.id} onClick={() => setSelectedInsegna(stato.insegna)}
               className={`flex flex-col items-center justify-center p-5 rounded-[20px] h-32 active:scale-95 transition-all ${getTileInsegna(stato.insegna)}`}
@@ -7427,8 +7474,13 @@ const TabSpese = ({ scontriniReali = [], dataLoaded = false }) => {
               )
               .slice(0, 20);
             if (lista.length === 0 && scontrini.length > 0) return (
-              <div className="px-5 pb-5 text-center">
-                <p className="text-sm" style={{ color: T.textSec }}>Nessun risultato per "{filtroScontrini}"</p>
+              <div className="px-5 pb-5">
+                <EmptyStateAzione
+                  emoji="🔍"
+                  titolo={`Nessuno scontrino con "${filtroScontrini}"`}
+                  sottotitolo="Prova con il nome del negozio o un prodotto che hai acquistato."
+                  ctaSecondaria={{ label: 'Cancella filtro', onCta: () => setFiltroScontrini('') }}
+                />
               </div>
             );
             return lista.map((s, i) => {

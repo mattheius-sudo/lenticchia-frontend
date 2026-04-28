@@ -135,6 +135,79 @@ const getTileInsegna = (insegna) => {
 
 // ─── Costanti ─────────────────────────────────────────────────────────────────
 
+// ── CAP → Quartiere (portato da CAP_ROMA_LOOKUP.py) ──────────────────────────
+// Usato per mostrare nomi quartiere invece di CAP grezzi e per filtrare
+// prezzi_scontrini per zona (stesso quartiere = stessa area di spesa)
+const CAP_QUARTIERE = {
+  // Roma — generico
+  '00100': 'Centro (generico Roma)',
+  // Roma — Municipio X (Ostia e litorale)
+  '00119': 'Acilia/Ostia Antica', '00121': 'Ostia Lido', '00122': 'Ostia Lido',
+  '00123': 'La Storta/Cassia nord', '00124': 'Infernetto/Casalpalocco',
+  '00125': 'Laurentino/Mostacciano', '00126': 'Vitinia/Vallerano',
+  '00127': 'Torrino/Spinaceto', '00128': 'Torrino/Tor de Cenci',
+  // Roma — Municipio III · IV · VI
+  '00129': 'Casal Monastero/Tor Sapienza',
+  '00131': 'Nomentano/Pietralata', '00132': 'Settecamini/Tor Cervara',
+  '00133': 'Lunghezza/Borghesiana', '00134': 'Dragona/Massimina',
+  '00135': 'Ottavia/Santa Maria della Pieta', '00136': 'Trionfale/Monte Mario',
+  '00137': 'Talenti/Nomentano', '00138': 'Val Melaina/Fidene',
+  '00139': 'Fidene/Serpentara', '00141': 'Nomentano/Sacco Pastore',
+  // Roma — Municipio IX (EUR)
+  '00118': 'Appia Antica/Ardeatino',
+  '00142': 'Eur/Torrino', '00143': 'Eur/Tre Fontane', '00144': 'Eur/Stagni',
+  '00145': 'Montagnola/Ostiense', '00146': 'Portuense/Magliana',
+  '00147': 'Portuense/Trullo', '00148': 'Boccea/Pisana',
+  '00149': 'Portuense/Magliana Vecchia',
+  // Roma — Municipio XI · XII (Trastevere, Garbatella)
+  '00151': 'Gianicolense/Colli Portuensi', '00152': 'Gianicolense/Villa Pamphilj',
+  '00153': 'Trastevere', '00154': 'Ostiense/Garbatella',
+  '00155': 'Tor Sapienza/Pigneto', '00156': 'Casal Bertone/Tiburtino',
+  '00157': 'Prenestino/Labicano', '00158': 'Tiburtino/Ponte Mammolo',
+  '00159': 'Prenestino/Centocelle',
+  // Roma — Municipio II (Parioli, Trieste, Salario) + XIII · XIV
+  '00161': 'Nomentano/Universita', '00162': 'Nomentano/Trieste',
+  '00163': 'Aurelio/Valle Aurelia', '00164': 'Aurelio/Boccea',
+  '00165': 'Aurelio/Prati', '00166': 'Aurelio/Primavalle',
+  '00167': 'Aurelio/Primavalle', '00168': 'Aurelio/Ottavia',
+  '00169': 'Prenestino/Centocelle',
+  '00171': 'Centocelle/Torre Spaccata', '00172': 'Torre Spaccata/Quadraro',
+  '00173': 'Appio Claudio/Appia Nuova', '00174': 'Appio/Tuscolano',
+  '00175': 'Tuscolano/Cinecitta', '00176': 'Pigneto/Casilino',
+  '00177': 'Torpignattara/Quarticciolo', '00178': 'Appio Pignatelli/Appia',
+  '00179': 'Appio Latino',
+  '00181': 'Appio Latino/Don Bosco', '00182': 'Appio/Furio Camillo',
+  '00183': 'Appio Latino/Latina',
+  // Roma — Centro storico
+  '00184': 'Monti/Esquilino', '00185': 'Esquilino/Termini',
+  '00186': 'Centro Storico/Prati', '00187': 'Trevi/Colonna',
+  '00188': 'Labaro/Prima Porta', '00189': 'Tomba di Nerone/La Storta',
+  '00191': 'Flaminio/Parioli', '00192': 'Prati/Della Vittoria',
+  '00193': 'Prati/Borgo', '00194': 'Trionfale/Prati Fiscali',
+  '00195': 'Prati/Della Vittoria', '00196': 'Parioli/Pinciano',
+  '00197': 'Parioli/Salario', '00198': 'Salario/Trieste',
+  '00199': 'Salario/Nomentano',
+  // Vaticano
+  '00120': 'Citta del Vaticano',
+  // Mantova — capoluogo
+  '46100': 'Mantova centro',
+  // Mantova — area urbana
+  '46010': 'Curtatone', '46020': 'San Giorgio Bigarello',
+  '46030': 'Roncoferraro/Porto Mantovano', '46040': 'Virgilio/Marmirolo',
+  '46041': 'Guidizzolo', '46042': 'Castiglione delle Stiviere',
+  '46043': 'Castiglione delle Stiviere', '46044': 'Goito',
+  '46045': 'Marmirolo', '46046': 'Porto Mantovano',
+  '46047': 'Porto Mantovano', '46048': 'Roverbella',
+  '46049': 'Volta Mantovana',
+};
+
+// Dato un CAP ritorna il nome quartiere, o null se non in tabella
+const capAQuartiere = (cap) => {
+  if (!cap) return null;
+  const c = String(cap).trim().padStart(5, '0');
+  return CAP_QUARTIERE[c] || null;
+};
+
 const CATEGORIE = [
   { id: 'tutte', label: 'Tutto' },
   { id: 'carne', label: 'Carne' },
@@ -4362,7 +4435,16 @@ const TabOfferte = ({ offerte, archivio = [], cittàAttiva = null, preferenze = 
               style={{ background: '#F0F9FF', border: '1px solid #BAE6FD' }}>
               <Receipt size={16} strokeWidth={1.5} className="shrink-0 mt-0.5" style={{ color: '#0369A1' }} />
               <div>
-                <p className="text-xs font-semibold" style={{ color: '#0369A1' }}>Prezzi rilevati dagli scontrini</p>
+                <p className="text-xs font-semibold" style={{ color: '#0369A1' }}>
+                  Prezzi rilevati dagli scontrini
+                  {(() => {
+                    const cap = profiloDemografico?.cap;
+                    const q   = capAQuartiere(cap);
+                    if (q) return ` · ${q}`;
+                    if (cap) return ` · CAP ${cap}`;
+                    return '';
+                  })()}
+                </p>
                 <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: '#0369A1', opacity: 0.85 }}>
                   Prezzi reali pagati dalla community — non offerte volantino. Utili per conoscere il prezzo abituale.
                 </p>
@@ -7536,8 +7618,8 @@ const PUNTI_BONUS_SETTIMANA  = 5;   // primo scontrino della settimana
 // calcolaLivello → usa getLivello(p).nome (definita a riga 259, evita duplicazione)
 const calcolaLivello = (p = 0) => getLivello(p).nome;
 
-const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk }) => {
-  const { utente, aggiornaScontriniPerCittà } = useAuth();
+const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk, profiloDemografico = null }) => {
+  const { utente, aggiornaScontriniPerCittà, cittàAttiva } = useAuth();
 
   // Quale scontrino stiamo revisionando (indice)
   const [indice, setIndice]             = useState(0);
@@ -7689,6 +7771,8 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk }) => {
         {
           insegna:          estratto.insegna || '',
           indirizzo:        estratto.indirizzo || '',
+          città:            cittàAttiva || null,
+          cap:              profiloDemografico?.cap || null,
           data_acquisto:    estratto.data_acquisto || '',
           totale_scontrino: totale,
           tipo_scontrino:   tipoScontrino,
@@ -7798,6 +7882,8 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk }) => {
         insegna:              modalCondivisione.estratto.insegna || '',
         insegna_normalizzata: (modalCondivisione.estratto.insegna || '').toLowerCase().trim(),
         indirizzo:            modalCondivisione.estratto.indirizzo || '',
+        città:                cittàAttiva || null,
+        cap:                  profiloDemografico?.cap || null,
         data_acquisto:        modalCondivisione.estratto.data_acquisto || '',
         totale_scontrino:     modalCondivisione.estratto.totale || 0,
         prodotti:             modalCondivisione.prodottiSpecifici,
@@ -8374,7 +8460,7 @@ function AppInterna() {
     } catch {}
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [offerte, setOfferte] = useState([]);
-  const [prezziCommunity, setPrezziCommunity] = useState([]);
+  const [prezziSnapshotPubblici, setPrezziSnapshotPubblici] = useState([]);
   const [statoVolantini, setStatoVolantini] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isDemoMode, setIsDemoMode] = useState(false);
@@ -8383,6 +8469,75 @@ function AppInterna() {
   const [scontriniDaValidare, setScontriniDaValidare] = useState([]);
   const [swUpdateAvailable, setSwUpdateAvailable]     = useState(false);
   const [nVolantiniDaRevisare, setNVolantiniDaRevisare] = useState(0);
+
+  // ── prezziCommunity: aggrega scontrini personali + dati pubblici ────────────
+  // Fonti: spese_personali/{uid}/scontrini (sempre) + prezzi_scontrini (condivisi)
+  // Risultato: prodotti deduplicati per nome+insegna con prezzo medio e campioni
+  const prezziCommunity = useMemo(() => {
+    const capUtente       = profiloDemografico?.cap || null;
+    const quartiereUtente = capAQuartiere(capUtente);
+    const aggMap = new Map();
+    const aggiungiScontrino = (scontrino) => {
+      // Filtro geografico — dal più preciso al più generico:
+      // 1. Stesso quartiere (da lookup CAP→quartiere) → zona camminabile
+      // 2. Stessa città → fallback per doc vecchi senza CAP / fuori lookup
+      // Doc senza né cap né città → passano (cold start)
+      if (scontrino.cap) {
+        if (!capUtente) return; // utente senza CAP: non filtrare per zona
+        const quartiereDoc = capAQuartiere(scontrino.cap);
+        // Se entrambi risolvono in un quartiere noto: match su quartiere
+        if (quartiereDoc && quartiereUtente) {
+          if (quartiereDoc !== quartiereUtente) return;
+        } else {
+          // Almeno uno non è in lookup: fallback su CAP esatto
+          if (scontrino.cap !== capUtente) return;
+        }
+      } else if (scontrino.città && cittàAttiva) {
+        if (scontrino.città !== cittàAttiva) return;
+      }
+      const insegna = scontrino.insegna || '';
+      const dataAcq = scontrino.data_acquisto || '';
+      (scontrino.prodotti || []).forEach(p => {
+        const nome = p.nome_normalizzato || p.nome || '';
+        const prezzo = p.prezzo_unitario ?? p.prezzo ?? 0;
+        if (!nome || !prezzo || prezzo <= 0) return;
+        if (p.tipo_voce === 'aggregato') return;
+        const chiave = `${nome.toLowerCase().trim()}__${insegna.toLowerCase()}`;
+        const prev = aggMap.get(chiave);
+        if (prev) {
+          prev.prezzi.push(prezzo);
+          if (dataAcq > prev.ultima_data) {
+            prev.ultimo_prezzo = prezzo;
+            prev.ultima_data   = dataAcq;
+          }
+        } else {
+          aggMap.set(chiave, {
+            id:            `community_${chiave}`,
+            nome,
+            marca:         p.marca || null,
+            grammatura:    p.formato || p.grammatura || null,
+            insegna,
+            categoria:     p.categoria_l1 || p.categoria || 'altro',
+            prezzi:        [prezzo],
+            ultimo_prezzo: prezzo,
+            ultima_data:   dataAcq,
+          });
+        }
+      });
+    };
+    // 1. Scontrini personali (sempre disponibili se loggato)
+    scontriniUtente.forEach(aggiungiScontrino);
+    // 2. Scontrini pubblici condivisi (deduplicati per chiave — già presenti sopra vengono aggiornati)
+    prezziSnapshotPubblici.forEach(aggiungiScontrino);
+
+    return [...aggMap.values()]
+      .map(v => ({
+        ...v,
+        n_campioni:   v.prezzi.length,
+        prezzo_media: v.prezzi.reduce((a, b) => a + b, 0) / v.prezzi.length,
+      }))
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
+  }, [scontriniUtente, prezziSnapshotPubblici, cittàAttiva, profiloDemografico]);
 
   // Ascolta l'evento di aggiornamento del Service Worker
   useEffect(() => {
@@ -8429,8 +8584,7 @@ function AppInterna() {
   // ─── Carica scontrini utente (per tab Spese) ──────────────────────────────
   const [scontriniLoaded, setScontriniLoaded] = useState(false);
   useEffect(() => {
-    if (!utente) return;
-    if (activeTab !== 'spese') return;
+    if (!utente) { setScontriniUtente([]); setScontriniLoaded(false); return; }
     let mounted = true;
     const caricaScontrini = async () => {
       try {
@@ -8449,7 +8603,7 @@ function AppInterna() {
     };
     caricaScontrini();
     return () => { mounted = false; };
-  }, [utente, activeTab]);
+  }, [utente]); // carica sempre al login, non solo su tab Spese
 
   // ─── Cache helpers ────────────────────────────────────────────────────────
   // TTL: offerte e stato validi per 6 ore — cambiano solo il giovedì
@@ -8583,50 +8737,9 @@ function AppInterna() {
         // stato_volantini include ora: insegna, tipo, sedi, valido_dal/fino, n_prodotti
         const statoList = statoSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-        // ── Aggrega prezzi_scontrini per prodotto+insegna ─────────────────────
-        // Ogni doc = uno scontrino confermato con array prodotti.
-        // Raggruppiamo per (nome_normalizzato, insegna) e calcoliamo media+ultimo prezzo.
-        const aggMap = new Map();
-        prezziSnapshot.docs.forEach(d => {
-          const scontrino = d.data();
-          const insegna   = scontrino.insegna || '';
-          const dataAcq   = scontrino.data_acquisto || '';
-          (scontrino.prodotti || []).forEach(p => {
-            if (!p.nome_normalizzato || !p.prezzo_unitario || p.prezzo_unitario <= 0) return;
-            if (p.tipo_voce === 'aggregato') return; // solo prodotti specifici
-            const chiave = `${p.nome_normalizzato.toLowerCase().trim()}__${insegna.toLowerCase()}`;
-            const prev   = aggMap.get(chiave);
-            if (prev) {
-              prev.prezzi.push(p.prezzo_unitario);
-              if (dataAcq > prev.ultima_data) {
-                prev.ultimo_prezzo = p.prezzo_unitario;
-                prev.ultima_data   = dataAcq;
-              }
-            } else {
-              aggMap.set(chiave, {
-                id:           `community_${chiave}`,
-                nome:         p.nome_normalizzato,
-                marca:        p.marca || null,
-                grammatura:   p.formato || null,
-                insegna:      insegna,
-                categoria:    p.categoria_l1 || 'altro',
-                prezzi:       [p.prezzo_unitario],
-                ultimo_prezzo: p.prezzo_unitario,
-                ultima_data:   dataAcq,
-              });
-            }
-          });
-        });
-
-        const comunityAggregati = [...aggMap.values()]
-          .map(v => ({
-            ...v,
-            n_campioni:  v.prezzi.length,
-            prezzo_media: v.prezzi.reduce((a, b) => a + b, 0) / v.prezzi.length,
-          }))
-          .sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
-
-        setPrezziCommunity(comunityAggregati);
+        // Salva dati pubblici grezzi — l'aggregazione avviene nel useMemo
+        // che combina questi con gli scontrini personali dell'utente
+        setPrezziSnapshotPubblici(prezziSnapshot.docs.map(d => ({ id: d.id, ...d.data() })));
 
         // Merge: offerte volantino + prezzi rilevati da scontrini
         const tutteLeOfferte = [...offerteList, ...prezziRilevati];
@@ -8882,7 +8995,7 @@ function AppInterna() {
         {activeTab === 'stato'      && <TabStato statoVolantini={statoVolantini} />}
         {activeTab === 'scontrino'  && (utente
           ? (nDaValidare > 0
-            ? <TabValidazioneScontrini scontriniDaValidare={scontriniDaValidare} onValidatoOk={onScontrinoValidato} />
+            ? <TabValidazioneScontrini scontriniDaValidare={scontriniDaValidare} onValidatoOk={onScontrinoValidato} profiloDemografico={profiloDemografico} />
             : <TabScontrino onApriRevisione={isGuruApp ? () => setActiveTab('revisione_volantini') : null} />)
           : <TabLoginRichiesto messaggio="Accedi per fotografare scontrini e guadagnare punti." />
         )}

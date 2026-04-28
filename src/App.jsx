@@ -4022,8 +4022,8 @@ const ORDINAMENTI = [
 ];
 
 const VISTA_ITEMS = [
-  { id: 'highlights', label: '✦ Top' },
-  { id: 'sfoglia',    label: 'Sfoglia' },
+  { id: 'sfoglia',    label: 'Offerte' },
+  { id: 'prezzi',     label: '🧾 Prezzi' },
   { id: 'cerca',      label: 'Cerca' },
 ];
 
@@ -4040,13 +4040,13 @@ const CATEGORIE_EMOJI = {
   altro:          '📦',
 };
 
-const TabOfferte = ({ offerte, archivio = [], cittàAttiva = null, preferenze = null }) => {
+const TabOfferte = ({ offerte, archivio = [], cittàAttiva = null, preferenze = null, prezziCommunity = [] }) => {
   const { prodottiPreferiti, isLoggedIn } = useAuth();
   const [searchOpen,     setSearchOpen]     = useState(false);
   const [searchQuery,    setSearchQuery]     = useState('');
+  const [vista,          setVista]           = useState('sfoglia');
   const [catAttiva,      setCatAttiva]       = useState('tutte');
   const [filtroInsegna,  setFiltroInsegna]   = useState(null);
-  const [infoAperte,     setInfoAperte]      = useState(false);
   const [infoInsegne,    setInfoInsegne]     = useState({});
   const { segnalati, segnala } = useSegnalazioniStore();
   const searchRef = React.useRef(null);
@@ -4147,24 +4147,23 @@ const TabOfferte = ({ offerte, archivio = [], cittàAttiva = null, preferenze = 
     return o.prezzo > media ? 'su' : 'giu';
   }, [archivio]);
 
-  // ── Fetch info pagamenti ───────────────────────────────────────────────────
+  // ── Fetch info pagamenti — si carica quando filtra per una singola insegna ──
   useEffect(() => {
-    if (!insegneDisp.length || !cittàAttiva || !infoAperte) return;
+    if (!filtroInsegna || !cittàAttiva) { setInfoInsegne({}); return; }
     let mounted = true;
-    Promise.all(
-      insegneDisp.map(async ins => {
-        const id   = `${cittàAttiva}_${ins.replace(/[^a-zA-Z0-9]/g, '_')}`;
-        const snap = await getDoc(doc(db, 'info_insegne', id));
-        return [ins, snap.exists() ? snap.data() : null];
+    const id = `${cittàAttiva}_${filtroInsegna.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    getDoc(doc(db, 'info_insegne', id))
+      .then(snap => {
+        if (!mounted) return;
+        if (snap.exists() && snap.data()?.dati) {
+          setInfoInsegne({ [filtroInsegna]: snap.data().dati });
+        } else {
+          setInfoInsegne({});
+        }
       })
-    ).then(entries => {
-      if (!mounted) return;
-      const mappa = {};
-      entries.forEach(([ins, d]) => { if (d?.dati) mappa[ins] = d.dati; });
-      setInfoInsegne(mappa);
-    }).catch(() => {});
+      .catch(() => {});
     return () => { mounted = false; };
-  }, [insegneDisp.join(','), cittàAttiva, infoAperte]);
+  }, [filtroInsegna, cittàAttiva]);
 
   // ── Helper: apre search e focus sull'input ─────────────────────────────────
   const apriSearch = () => {
@@ -4224,6 +4223,25 @@ const TabOfferte = ({ offerte, archivio = [], cittàAttiva = null, preferenze = 
             </button>
           </div>
         </div>
+
+        {/* Selettore vista — Offerte / 🧾 Prezzi / Cerca */}
+        {!searchOpen && (
+          <div className="flex gap-1 px-4 pb-2">
+            {VISTA_ITEMS.map(v => {
+              const attiva = vista === v.id;
+              return (
+                <button key={v.id}
+                  onClick={() => { setVista(v.id); if (v.id === 'cerca') { setSearchOpen(true); setTimeout(() => searchRef.current?.focus(), 80); } }}
+                  className="flex-1 py-1.5 rounded-full text-xs font-semibold transition-all"
+                  style={attiva
+                    ? { background: T.primary, color: '#fff' }
+                    : { background: T.surface, color: T.textSec, border: `1px solid ${T.border}` }}>
+                  {v.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Search input — espansione animata */}
         {searchOpen && (
@@ -4336,8 +4354,122 @@ const TabOfferte = ({ offerte, archivio = [], cittàAttiva = null, preferenze = 
           </div>
         )}
 
-        {/* ── VISTA NORMALE ───────────────────────────────────────────────── */}
-        {!searchOpen && (
+        {/* ── VISTA PREZZI COMMUNITY ──────────────────────────────────────── */}
+        {!searchOpen && vista === 'prezzi' && (
+          <div className="px-4 pt-4 pb-4">
+            {/* Intro contestuale */}
+            <div className="mb-3 px-4 py-3 rounded-[16px] flex items-start gap-2.5"
+              style={{ background: '#F0F9FF', border: '1px solid #BAE6FD' }}>
+              <Receipt size={16} strokeWidth={1.5} className="shrink-0 mt-0.5" style={{ color: '#0369A1' }} />
+              <div>
+                <p className="text-xs font-semibold" style={{ color: '#0369A1' }}>Prezzi rilevati dagli scontrini</p>
+                <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: '#0369A1', opacity: 0.85 }}>
+                  Prezzi reali pagati dalla community — non offerte volantino. Utili per conoscere il prezzo abituale.
+                </p>
+              </div>
+            </div>
+
+            {/* Chip filtro insegna */}
+            {(() => {
+              const insegnePrezzi = [...new Set(prezziCommunity.map(p => p.insegna).filter(Boolean))].sort();
+              if (insegnePrezzi.length < 2) return null;
+              return (
+                <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-3">
+                  <button onClick={() => setFiltroInsegna(null)}
+                    className="px-3 py-1 rounded-full text-[11px] font-medium shrink-0"
+                    style={!filtroInsegna
+                      ? { background: T.textPrimary, color: '#fff' }
+                      : { background: T.surface, color: T.textSec, border: `1px solid ${T.border}` }}>
+                    Tutti
+                  </button>
+                  {insegnePrezzi.map(ins => (
+                    <button key={ins}
+                      onClick={() => setFiltroInsegna(ins === filtroInsegna ? null : ins)}
+                      className="px-3 py-1 rounded-full text-[11px] font-medium shrink-0"
+                      style={filtroInsegna === ins
+                        ? { background: T.textPrimary, color: '#fff' }
+                        : { background: T.surface, color: T.textSec, border: `1px solid ${T.border}` }}>
+                      {ins.split('/')[0].trim()}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
+
+            {/* Lista prodotti */}
+            {prezziCommunity.length === 0 ? (
+              <div className="rounded-[20px] py-12 text-center"
+                style={{ background: T.surface, border: `1px dashed ${T.border}` }}>
+                <Receipt size={28} strokeWidth={1.2} className="mx-auto mb-3" style={{ color: T.textSec }} />
+                <p className="text-sm font-medium mb-1" style={{ color: T.textPrimary }}>
+                  Nessun prezzo ancora
+                </p>
+                <p className="text-xs" style={{ color: T.textSec }}>
+                  Carica il tuo primo scontrino — i prezzi appaiono qui dopo la verifica.
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-[20px] overflow-hidden"
+                style={{ background: T.surface, border: `1px solid #BAE6FD`,
+                         boxShadow: '0 2px 16px rgba(3,105,161,0.06)' }}>
+                {(filtroInsegna
+                  ? prezziCommunity.filter(p => p.insegna === filtroInsegna)
+                  : prezziCommunity
+                ).map((p, i, arr) => (
+                  <div key={p.id || i}
+                    className="px-4 py-3 flex items-center gap-3"
+                    style={{ borderBottom: i < arr.length - 1 ? `1px solid ${T.border}` : 'none' }}>
+                    {/* Prezzo */}
+                    <div className="shrink-0 text-right w-16">
+                      <div className="font-semibold leading-tight"
+                        style={{ fontFamily: "'Lora', serif", fontSize: '17px', color: T.textPrimary }}>
+                        {formattaPrezzo(p.ultimo_prezzo)}
+                      </div>
+                      {p.n_campioni > 1 && (
+                        <div className="text-[10px] mt-0.5" style={{ color: T.textSec }}>
+                          media {formattaPrezzo(p.prezzo_media)}
+                        </div>
+                      )}
+                    </div>
+                    {/* Nome + insegna */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate" style={{ color: T.textPrimary }}>
+                        {p.nome}
+                        {p.marca && <span className="font-normal" style={{ color: T.textSec }}> · {p.marca}</span>}
+                      </p>
+                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md ${getBadgeInsegna(p.insegna)}`}>
+                          {p.insegna}
+                        </span>
+                        {p.grammatura && (
+                          <span className="text-[11px]" style={{ color: T.textSec }}>{p.grammatura}</span>
+                        )}
+                      </div>
+                    </div>
+                    {/* Meta: campioni + data */}
+                    <div className="shrink-0 text-right">
+                      <div className="text-[10px] font-medium px-1.5 py-0.5 rounded-md"
+                        style={{ background: '#F0F9FF', color: '#0369A1', border: '1px solid #BAE6FD' }}>
+                        🧾 {p.n_campioni} {p.n_campioni === 1 ? 'scontrino' : 'scontrini'}
+                      </div>
+                      {p.ultima_data && (
+                        <div className="text-[10px] mt-1" style={{ color: T.textSec }}>
+                          {(() => {
+                            const gg = Math.floor((Date.now() - new Date(p.ultima_data).getTime()) / 86400000);
+                            return gg === 0 ? 'oggi' : gg === 1 ? 'ieri' : `${gg}gg fa`;
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── VISTA NORMALE (sfoglia) ─────────────────────────────────────── */}
+        {!searchOpen && vista === 'sfoglia' && (
           <>
             {/* Sezione ⭐ Per te — solo se loggato con preferiti in offerta */}
             {offertePreferite.length > 0 && (
@@ -4457,6 +4589,78 @@ const TabOfferte = ({ offerte, archivio = [], cittàAttiva = null, preferenze = 
                 </span>
               </div>
 
+              {/* ── 💳 Card pagamenti contestuale — solo quando filtra per insegna ── */}
+              {filtroInsegna && (() => {
+                const info = infoInsegne[filtroInsegna];
+                const pag  = info?.pagamenti || {};
+                const buoni      = info?.buoni_pasto?.accettati;
+                const circuiti   = info?.buoni_pasto?.circuiti || [];
+                const promozioni = info?.promozioni_flat || [];
+                const METODI = [
+                  { key: 'contanti',    label: 'Contanti',    emoji: '💵' },
+                  { key: 'bancomat',    label: 'Bancomat',    emoji: '💳' },
+                  { key: 'carta',       label: 'Carta',       emoji: '💳' },
+                  { key: 'contactless', label: 'Tap to pay',  emoji: '📲' },
+                  { key: 'satispay',    label: 'Satispay',    emoji: '🔵' },
+                ];
+                const metodiSi = METODI.filter(m => pag[m.key]);
+                const hasInfo  = info && (metodiSi.length > 0 || buoni !== undefined || promozioni.length > 0);
+                return (
+                  <div className="mb-3 rounded-[16px] overflow-hidden"
+                    style={{ background: T.surface, border: `1px solid ${T.border}` }}>
+                    {hasInfo ? (
+                      <div className="px-4 py-3 space-y-2">
+                        {/* Pagamenti */}
+                        {metodiSi.length > 0 && (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[10px] uppercase font-semibold tracking-wide mr-1"
+                              style={{ color: T.textSec }}>Paga con</span>
+                            {metodiSi.map(m => (
+                              <span key={m.key} className="text-[11px] px-2 py-0.5 rounded-full font-medium"
+                                style={{ background: '#EEF2E4', color: T.primary }}>
+                                {m.emoji} {m.label}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {/* Buoni pasto */}
+                        {buoni !== undefined && (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[11px] px-2 py-0.5 rounded-full font-medium"
+                              style={buoni
+                                ? { background: '#EEF2E4', color: T.primary }
+                                : { background: '#FEE2E2', color: '#DC2626' }}>
+                              🎟️ Buoni pasto {buoni ? 'accettati' : 'non accettati'}
+                            </span>
+                            {buoni && circuiti.slice(0, 3).map(c => (
+                              <span key={c} className="text-[10px] px-1.5 py-0.5 rounded-full"
+                                style={{ background: T.bg, color: T.textSec, border: `1px solid ${T.border}` }}>
+                                {c}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {/* Promozioni */}
+                        {promozioni.slice(0, 3).map((p, i) => (
+                          <p key={i} className="text-[11px]" style={{ color: T.textSec }}>
+                            📅 {p.regola}
+                          </p>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="px-4 py-3 flex items-center justify-between">
+                        <p className="text-xs" style={{ color: T.textSec }}>
+                          💳 Nessuna info pagamenti per {filtroInsegna}
+                        </p>
+                        <span className="text-[10px] font-medium" style={{ color: T.primary }}>
+                          Aggiungi →
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
               {offerteFiltrate.length === 0 ? (
                 <div className="rounded-[20px] py-12 text-center"
                   style={{ background: T.surface, border: `1px solid ${T.border}` }}>
@@ -4488,77 +4692,6 @@ const TabOfferte = ({ offerte, archivio = [], cittàAttiva = null, preferenze = 
               )}
             </div>
 
-            {/* ── 💳 Pagamenti & promozioni — collassabile ────────────── */}
-            <div className="px-4 pt-6 pb-2">
-              <button
-                onClick={() => setInfoAperte(p => !p)}
-                className="w-full flex items-center justify-between px-5 py-4 rounded-[20px] transition-all active:scale-[0.99]"
-                style={{ background: T.surface, border: `1px solid ${T.border}` }}>
-                <div className="flex items-center gap-3">
-                  <span style={{ fontSize: '20px' }}>💳</span>
-                  <span className="text-sm font-semibold" style={{ color: T.textPrimary }}>
-                    Pagamenti & promozioni
-                  </span>
-                </div>
-                <ChevronRight size={18} strokeWidth={1.5}
-                  className="transition-transform duration-300"
-                  style={{ color: T.textSec, transform: infoAperte ? 'rotate(90deg)' : 'rotate(0deg)' }} />
-              </button>
-
-              {infoAperte && (
-                <div className="mt-3 space-y-2">
-                  {insegneDisp.filter(ins => infoInsegne[ins]).length === 0 ? (
-                    <div className="rounded-[16px] px-4 py-4 text-center"
-                      style={{ background: T.bg, border: `1px dashed ${T.border}` }}>
-                      <p className="text-sm" style={{ color: T.textSec }}>
-                        Nessuna info ancora — aiutaci ad aggiungerle!
-                      </p>
-                      <p className="text-xs mt-1" style={{ color: T.textSec }}>
-                        Apri la scheda di un supermercato per contribuire
-                      </p>
-                    </div>
-                  ) : (
-                    insegneDisp.filter(ins => infoInsegne[ins]).map(ins => {
-                      const d          = infoInsegne[ins];
-                      const buoni      = d.buoni_pasto?.accettati;
-                      const circuiti   = d.buoni_pasto?.circuiti || [];
-                      const promoFlat  = d.promozioni_flat || [];
-                      return (
-                        <div key={ins} className="rounded-[16px] px-4 py-3"
-                          style={{ background: T.surface, border: `1px solid ${T.border}` }}>
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold mb-1.5" style={{ color: T.textPrimary }}>
-                                {ins}
-                              </p>
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="text-[11px] px-2 py-0.5 rounded-full font-medium"
-                                  style={buoni
-                                    ? { background: '#EEF2E4', color: T.primary }
-                                    : { background: '#FEE2E2', color: '#DC2626' }}>
-                                  🎟️ {buoni ? 'Buoni sì' : 'Buoni no'}
-                                </span>
-                                {buoni && circuiti.slice(0, 2).map(c => (
-                                  <span key={c} className="text-[10px] px-1.5 py-0.5 rounded-full"
-                                    style={{ background: T.bg, color: T.textSec, border: `1px solid ${T.border}` }}>
-                                    {c}
-                                  </span>
-                                ))}
-                              </div>
-                              {promoFlat.slice(0, 2).map((p, i) => (
-                                <p key={i} className="text-[11px] mt-1" style={{ color: T.textSec }}>
-                                  📅 {p.regola}
-                                </p>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              )}
-            </div>
           </>
         )}
       </div>
@@ -7214,6 +7347,32 @@ const TabSpese = ({ scontriniReali = [], dataLoaded = false }) => {
             </p>
           </div>
 
+          {/* Banner mismatch: somma prodotti ≠ totale scontrino */}
+          {(() => {
+            const sommaProdotti = prodottiEdit.reduce((acc, p) => {
+              const prezzo = p.prezzo_unitario ?? 0;
+              const qty    = p.quantita ?? 1;
+              return acc + prezzo * qty;
+            }, 0);
+            const totale = modalScontrino.totale_scontrino ?? 0;
+            const diff = Math.abs(sommaProdotti - totale);
+            if (totale === 0 || diff < 0.02) return null;
+            const sommaSuperaTotale = sommaProdotti > totale;
+            return (
+              <div className="px-4 py-2.5 shrink-0 flex items-start gap-2"
+                style={{ background: '#FFFBEB', borderBottom: '1px solid #FDE68A' }}>
+                <AlertTriangle size={14} strokeWidth={2} className="shrink-0 mt-0.5" style={{ color: '#D97706' }} />
+                <p className="text-xs leading-relaxed" style={{ color: '#92400E' }}>
+                  La somma dei prodotti (<strong>{formattaPrezzo(sommaProdotti)}</strong>) non corrisponde
+                  al totale (<strong>{formattaPrezzo(totale)}</strong>).{' '}
+                  {sommaSuperaTotale
+                    ? 'Potrebbe esserci uno sconto applicato in cassa.'
+                    : 'Potrebbe esserci un prodotto non riconosciuto o un errore di lettura.'}
+                </p>
+              </div>
+            );
+          })()}
+
           {/* Lista prodotti scrollabile — flex-1 con min-h-0 per iOS */}
           <div className="flex-1 overflow-y-auto min-h-0 px-4 py-3 space-y-2">
             {prodottiEdit.map((p, idx) => {
@@ -8215,6 +8374,7 @@ function AppInterna() {
     } catch {}
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [offerte, setOfferte] = useState([]);
+  const [prezziCommunity, setPrezziCommunity] = useState([]);
   const [statoVolantini, setStatoVolantini] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isDemoMode, setIsDemoMode] = useState(false);
@@ -8345,11 +8505,12 @@ function AppInterna() {
 
       // ── 2. Cache mancante o scaduta — legge da Firestore ─────────────────
       try {
-        // Carica offerte attive + statistiche prodotti in parallelo
-        const [offerteSnapshot, statoSnapshot, statSnapshot] = await Promise.all([
+        // Carica offerte attive + statistiche prodotti + prezzi scontrini in parallelo
+        const [offerteSnapshot, statoSnapshot, statSnapshot, prezziSnapshot] = await Promise.all([
           getDocs(collection(db, 'offerte_attive')),
           getDocs(collection(db, 'stato_volantini')),
           getDocs(query(collection(db, 'statistiche_prodotti'), limit(500))),
+          getDocs(query(collection(db, 'prezzi_scontrini'), limit(400))),
         ]);
 
         const offerteList = offerteSnapshot.docs
@@ -8421,6 +8582,51 @@ function AppInterna() {
 
         // stato_volantini include ora: insegna, tipo, sedi, valido_dal/fino, n_prodotti
         const statoList = statoSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        // ── Aggrega prezzi_scontrini per prodotto+insegna ─────────────────────
+        // Ogni doc = uno scontrino confermato con array prodotti.
+        // Raggruppiamo per (nome_normalizzato, insegna) e calcoliamo media+ultimo prezzo.
+        const aggMap = new Map();
+        prezziSnapshot.docs.forEach(d => {
+          const scontrino = d.data();
+          const insegna   = scontrino.insegna || '';
+          const dataAcq   = scontrino.data_acquisto || '';
+          (scontrino.prodotti || []).forEach(p => {
+            if (!p.nome_normalizzato || !p.prezzo_unitario || p.prezzo_unitario <= 0) return;
+            if (p.tipo_voce === 'aggregato') return; // solo prodotti specifici
+            const chiave = `${p.nome_normalizzato.toLowerCase().trim()}__${insegna.toLowerCase()}`;
+            const prev   = aggMap.get(chiave);
+            if (prev) {
+              prev.prezzi.push(p.prezzo_unitario);
+              if (dataAcq > prev.ultima_data) {
+                prev.ultimo_prezzo = p.prezzo_unitario;
+                prev.ultima_data   = dataAcq;
+              }
+            } else {
+              aggMap.set(chiave, {
+                id:           `community_${chiave}`,
+                nome:         p.nome_normalizzato,
+                marca:        p.marca || null,
+                grammatura:   p.formato || null,
+                insegna:      insegna,
+                categoria:    p.categoria_l1 || 'altro',
+                prezzi:       [p.prezzo_unitario],
+                ultimo_prezzo: p.prezzo_unitario,
+                ultima_data:   dataAcq,
+              });
+            }
+          });
+        });
+
+        const comunityAggregati = [...aggMap.values()]
+          .map(v => ({
+            ...v,
+            n_campioni:  v.prezzi.length,
+            prezzo_media: v.prezzi.reduce((a, b) => a + b, 0) / v.prezzi.length,
+          }))
+          .sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
+
+        setPrezziCommunity(comunityAggregati);
 
         // Merge: offerte volantino + prezzi rilevati da scontrini
         const tutteLeOfferte = [...offerteList, ...prezziRilevati];
@@ -8668,7 +8874,7 @@ function AppInterna() {
       )}
 
       <div className="h-screen overflow-hidden" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 4.5rem)' }}>
-        {activeTab === 'offerte'    && <TabOfferte offerte={offerte} archivio={archivio} cittàAttiva={cittàAttiva} preferenze={preferenze} />}
+        {activeTab === 'offerte'    && <TabOfferte offerte={offerte} archivio={archivio} cittàAttiva={cittàAttiva} preferenze={preferenze} prezziCommunity={prezziCommunity} />}
         {activeTab === 'lista'      && (utente
           ? <TabListaSpesa offerte={offerte} archivio={archivio} />
           : <TabLoginRichiesto messaggio="Accedi per gestire la tua lista della spesa e usare il Verdetto Spesa." />

@@ -3740,7 +3740,7 @@ const TabScontrino = ({ onApriRevisione = null }) => {
               <div className="space-y-1.5 text-sm" style={{ color: T.primary }}>
                 <p>+25 pt per ogni volantino approvato</p>
                 <p>+5 pt bonus per insegne non ancora in app</p>
-                <p>Aiuti tutta la community di Roma 🤝</p>
+                <p>Aiuti tutta la community di Lenticchia 🤝</p>
               </div>
             </div>
 
@@ -3933,6 +3933,73 @@ const TabScontrino = ({ onApriRevisione = null }) => {
             </p>
           </div>
         )}
+
+        {/* ── Progressione Guru — solo per chi non è ancora Guru ── */}
+        {!isGuru && stato === 'idle' && (() => {
+          const puntiAttuali = profilo?.punti || 0;
+          const puntiMancanti = Math.max(0, 1000 - puntiAttuali);
+          const progressPct = Math.min(100, Math.round((puntiAttuali / 1000) * 100));
+          const UNLOCK_STEPS = [
+            { punti: 0,    emoji: '📸', label: 'Carica scontrini e volantini',        sbloccato: true },
+            { punti: 100,  emoji: '✓',  label: 'Conferma prezzi della community',      sbloccato: puntiAttuali >= 100 },
+            { punti: 500,  emoji: '⚖️', label: 'I tuoi voti valgono di più',           sbloccato: puntiAttuali >= 500 },
+            { punti: 1000, emoji: '🔒', label: 'Revisiona e approva i volantini',      sbloccato: false },
+            { punti: 1000, emoji: '🔒', label: 'Imposta date e insegna canonica',      sbloccato: false },
+          ];
+          return (
+            <div className="mt-4 rounded-[20px] p-4"
+              style={{ background: T.surface, border: `1px solid ${T.border}` }}>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-semibold" style={{ color: T.textPrimary }}>
+                  🌟 Diventa Guru
+                </p>
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full"
+                  style={{ background: '#EEF2E4', color: T.primary }}>
+                  {puntiAttuali.toLocaleString('it-IT')} / 1.000 pt
+                </span>
+              </div>
+
+              {/* Barra progresso */}
+              <div className="rounded-full overflow-hidden mb-3"
+                style={{ height: '6px', background: T.border }}>
+                <div className="h-full rounded-full transition-all"
+                  style={{ width: `${progressPct}%`, background: T.primary }} />
+              </div>
+
+              {/* Lista features */}
+              <div className="space-y-2">
+                {UNLOCK_STEPS.map((step, i) => (
+                  <div key={i} className="flex items-center gap-2.5">
+                    <span style={{ fontSize: '14px', opacity: step.sbloccato ? 1 : 0.4 }}>
+                      {step.sbloccato ? step.emoji : '🔒'}
+                    </span>
+                    <span className="text-xs flex-1" style={{
+                      color: step.sbloccato ? T.textPrimary : T.textSec,
+                      textDecoration: step.sbloccato ? 'none' : 'none',
+                    }}>
+                      {step.label}
+                      {!step.sbloccato && (
+                        <span className="ml-1.5 text-[10px] font-medium"
+                          style={{ color: T.textSec }}>
+                          da {step.punti.toLocaleString('it-IT')} pt
+                        </span>
+                      )}
+                    </span>
+                    {step.sbloccato && (
+                      <CheckCircle size={12} strokeWidth={2} style={{ color: T.primary, flexShrink: 0 }} />
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {puntiMancanti > 0 && (
+                <p className="text-[11px] mt-3 text-center" style={{ color: T.textSec }}>
+                  Ancora <strong>{puntiMancanti.toLocaleString('it-IT')} pt</strong> per diventare Guru
+                </p>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
@@ -8242,7 +8309,7 @@ const TabValidazioneScontrini = ({ scontriniDaValidare, onValidatoOk, profiloDem
                     Condividi con la community?
                   </h3>
                   <p className="text-sm mt-1" style={{ color: T.textSec }}>
-                    Aiuta gli altri utenti di Roma a risparmiare — i tuoi prezzi vengono condivisi in forma anonima.
+                    Aiuta la community a risparmiare — i tuoi prezzi vengono condivisi in forma anonima.
                   </p>
                 </div>
 
@@ -9207,22 +9274,7 @@ function AppInterna() {
   const NAV_ITEMS = [
     { id: 'lista',      icon: <ListTodo size={24} strokeWidth={1.5} />, label: 'Spesa' },
     { id: 'offerte',    icon: <Tag size={24} strokeWidth={1.5} />,      label: 'Offerte' },
-    {
-      id: 'scontrino',
-      label: 'Scontrino',
-      dataTutorial: 'tab-scontrino',
-      icon: (
-        <div className="relative">
-          <Camera size={24} strokeWidth={1.5} />
-          {nDaValidare > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold"
-              style={{ background: T.accent, color: '#fff' }}>
-              {nDaValidare > 9 ? '9+' : nDaValidare}
-            </span>
-          )}
-        </div>
-      )
-    },
+    { id: 'scontrino',  label: 'Partecipa', dataTutorial: 'tab-scontrino', isFab: true },
     { id: 'spese',      icon: <Wallet size={24} strokeWidth={1.5} />,   label: 'Spese' },
     { id: 'profilo',    icon: utente?.photoURL
         ? <img src={utente.photoURL} alt="avatar" className="w-6 h-6 rounded-full" style={{ border: activeTab === 'profilo' ? `2px solid ${T.primary}` : '2px solid transparent' }} />
@@ -9307,19 +9359,72 @@ function AppInterna() {
 
       {/* ── Navbar fissa in fondo — stile app nativa ── */}
       <nav
-        className="fixed bottom-0 left-0 right-0 z-50 flex items-stretch"
+        className="fixed bottom-0 left-0 right-0 z-50 flex items-end"
         style={{
           background:    T.surface,
           borderTop:     `1px solid ${T.border}`,
           paddingBottom: 'env(safe-area-inset-bottom)',
           boxShadow:     '0 -4px 20px rgba(44,48,38,0.08)',
-          // Centra la nav dentro il max-width dell'app
           maxWidth:      '448px',
           margin:        '0 auto',
+          overflow:      'visible',
         }}
       >
         {NAV_ITEMS.map(item => {
           const isActive = activeTab === item.id;
+
+          // ── FAB centrale "Partecipa" ──────────────────────────────────────
+          if (item.isFab) {
+            const badge = nDaValidare > 0 ? nDaValidare
+                        : (isGuruApp && nVolantiniDaRevisare > 0) ? nVolantiniDaRevisare
+                        : 0;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                data-tutorial={item.dataTutorial}
+                className="flex-1 flex flex-col items-center transition-all active:scale-95"
+                style={{ paddingBottom: '8px', position: 'relative', marginTop: '-20px' }}
+              >
+                {/* Cerchio FAB */}
+                <div style={{
+                  width:        '58px',
+                  height:       '58px',
+                  borderRadius: '50%',
+                  background:   isActive ? T.primaryDark : T.primary,
+                  boxShadow:    '0 4px 16px rgba(100,113,68,0.45)',
+                  display:      'flex',
+                  alignItems:   'center',
+                  justifyContent: 'center',
+                  border:       `3px solid ${T.surface}`,
+                  position:     'relative',
+                  transition:   'background 0.15s, transform 0.15s',
+                  transform:    isActive ? 'scale(1.08)' : 'scale(1)',
+                }}>
+                  <span style={{ color: '#fff', fontSize: '28px', lineHeight: 1, fontWeight: 300 }}>+</span>
+                  {/* Badge */}
+                  {badge > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold"
+                      style={{ background: nDaValidare > 0 ? T.accent : '#7C3AED', color: '#fff' }}>
+                      {badge > 9 ? '9+' : badge}
+                    </span>
+                  )}
+                </div>
+                {/* Label */}
+                <span style={{
+                  fontSize:    '10px',
+                  fontWeight:  isActive ? 600 : 500,
+                  color:       isActive ? T.primary : T.textSec,
+                  marginTop:   '4px',
+                  lineHeight:  1,
+                }}>
+                  Partecipa
+                </span>
+              </button>
+            );
+          }
+
+          // ── Tab normale ───────────────────────────────────────────────────
           return (
             <button
               key={item.id}
@@ -9328,67 +9433,25 @@ function AppInterna() {
               className="flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-all active:scale-95 relative"
               style={{ minWidth: 0 }}
             >
-              {/* Indicatore attivo — lineetta in cima */}
+              {/* Indicatore attivo */}
               {isActive && (
-                <span
-                  className="absolute top-0 left-1/2 rounded-full"
-                  style={{
-                    width:       '24px',
-                    height:      '3px',
-                    background:  T.primary,
-                    transform:   'translateX(-50%)',
-                  }}
-                />
+                <span className="absolute top-0 left-1/2 rounded-full"
+                  style={{ width: '24px', height: '3px', background: T.primary, transform: 'translateX(-50%)' }} />
               )}
-
               {/* Icona */}
-              <span style={{
-                color:  isActive ? T.primary : T.textSec,
-                display: 'flex',
-                transition: 'color 0.15s',
-              }}>
-                {item.id === 'scontrino' ? (
-                  <div className="relative">
-                    <Camera size={22} strokeWidth={isActive ? 2 : 1.5} />
-                    {nDaValidare > 0 && (
-                      <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold"
-                        style={{ background: T.accent, color: '#fff' }}>
-                        {nDaValidare > 9 ? '9+' : nDaValidare}
-                      </span>
-                    )}
-                    {nDaValidare === 0 && isGuruApp && nVolantiniDaRevisare > 0 && (
-                      <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold"
-                        style={{ background: '#7C3AED', color: '#fff' }}>
-                        {nVolantiniDaRevisare > 9 ? '9+' : nVolantiniDaRevisare}
-                      </span>
-                    )}
-                  </div>
-                ) : item.id === 'profilo' && utente?.photoURL ? (
-                  <img
-                    src={utente.photoURL}
-                    alt="avatar"
-                    className="w-6 h-6 rounded-full"
-                    style={{
-                      border: isActive ? `2px solid ${T.primary}` : `2px solid ${T.border}`,
-                      transition: 'border-color 0.15s',
-                    }}
-                  />
+              <span style={{ color: isActive ? T.primary : T.textSec, display: 'flex', transition: 'color 0.15s' }}>
+                {item.id === 'profilo' && utente?.photoURL ? (
+                  <img src={utente.photoURL} alt="avatar" className="w-6 h-6 rounded-full"
+                    style={{ border: isActive ? `2px solid ${T.primary}` : `2px solid ${T.border}`, transition: 'border-color 0.15s' }} />
                 ) : (
-                  React.cloneElement(item.icon, {
-                    size:        22,
-                    strokeWidth: isActive ? 2 : 1.5,
-                  })
+                  React.cloneElement(item.icon, { size: 22, strokeWidth: isActive ? 2 : 1.5 })
                 )}
               </span>
-
               {/* Label */}
               <span style={{
-                fontSize:    '10px',
-                fontWeight:  isActive ? 600 : 400,
-                color:       isActive ? T.primary : T.textSec,
-                letterSpacing: '0.01em',
-                lineHeight:  1,
-                transition:  'color 0.15s, font-weight 0.15s',
+                fontSize: '10px', fontWeight: isActive ? 600 : 400,
+                color: isActive ? T.primary : T.textSec,
+                letterSpacing: '0.01em', lineHeight: 1, transition: 'color 0.15s, font-weight 0.15s',
               }}>
                 {item.label}
               </span>
